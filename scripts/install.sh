@@ -160,7 +160,7 @@ install_launch_agent() {
       warn "Could not load LaunchAgent. Load it manually:"
       warn "  launchctl bootstrap gui/${uid} ${plist_dest}"
     }
-    ok "LaunchAgent loaded (updates every 60s)"
+    ok "LaunchAgent loaded (updates every 4min)"
   else
     warn "LaunchAgent plist not found in release, skipping"
   fi
