@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TEMPLATE: ${HOME} placeholders are expanded by scripts/install.sh via sed.
+  Do not copy this file directly to ~/Library/LaunchAgents — launchd does not
+  expand shell variables. Use the installer instead.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.suyash.wilson-updater</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>${HOME}/srv/wilson/latest/deploy/wilson-update.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${HOME}/.local/bin:${HOME}/.bun/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>${HOME}/Library/Logs/wilson-updater.log</string>
+  <key>StandardErrorPath</key>
+  <string>${HOME}/Library/Logs/wilson-updater.log</string>
+</dict>
+</plist>
