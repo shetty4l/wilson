@@ -22,7 +22,7 @@
   </dict>
 
   <key>StartInterval</key>
-  <integer>60</integer>
+  <integer>240</integer>
 
   <key>StandardOutPath</key>
   <string>${HOME}/Library/Logs/wilson-updater.log</string>

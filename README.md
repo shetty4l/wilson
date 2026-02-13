@@ -35,14 +35,14 @@ wilson version             Show Wilson + all service versions
 Wilson owns deployment for all services. Each service owns its own code,
 CI, and install script. Wilson provides:
 
-- A LaunchAgent that checks for updates every 60 seconds
+- A LaunchAgent that checks for updates every 4 minutes
 - A CLI for monitoring and managing all services from one place
 - Update orchestration: version check → delegate to service installer → restart
 
 ### Update flow
 
 ```
-wilson-update.sh (runs every 60s via LaunchAgent)
+wilson-update.sh (runs every 4min via LaunchAgent)
 ├── 1. Check Engram for updates → if newer: run engram install.sh, restart
 ├── 2. Check Synapse for updates → if newer: run synapse install.sh, restart
 └── 3. Check Wilson for updates → if newer: run wilson install.sh (self-update)
