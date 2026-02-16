@@ -26,7 +26,7 @@ export const SERVICES: readonly ServiceConfig[] = [
     currentVersionFile: join(HOME, "srv", "engram", "current-version"),
     cliPath: join(HOME, ".local", "bin", "engram"),
     logFiles: {
-      daemon: join(HOME, ".local", "share", "engram", "engram.log"),
+      daemon: join(HOME, ".config", "engram", "engram.log"),
       updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
     },
   },
@@ -41,6 +41,20 @@ export const SERVICES: readonly ServiceConfig[] = [
     cliPath: join(HOME, ".local", "bin", "synapse"),
     logFiles: {
       daemon: join(HOME, ".config", "synapse", "synapse.log"),
+      updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
+    },
+  },
+  {
+    name: "cortex",
+    displayName: "Cortex",
+    repo: "shetty4l/cortex",
+    port: 7751,
+    healthUrl: "http://localhost:7751/health",
+    installBase: join(HOME, "srv", "cortex"),
+    currentVersionFile: join(HOME, "srv", "cortex", "current-version"),
+    cliPath: join(HOME, ".local", "bin", "cortex"),
+    logFiles: {
+      daemon: join(HOME, ".config", "cortex", "cortex.log"),
       updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
     },
   },
