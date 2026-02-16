@@ -152,15 +152,19 @@ install_launch_agent() {
     sed "s|\${HOME}|${HOME}|g" "$plist_template" > "$plist_dest"
     ok "LaunchAgent installed: ${plist_dest}"
 
-    # Load the agent (unload first if already loaded)
-    local uid
-    uid=$(id -u)
-    launchctl bootout "gui/${uid}/com.suyash.wilson-updater" 2>/dev/null || true
-    launchctl bootstrap "gui/${uid}" "$plist_dest" 2>/dev/null || {
-      warn "Could not load LaunchAgent. Load it manually:"
-      warn "  launchctl bootstrap gui/${uid} ${plist_dest}"
-    }
-    ok "LaunchAgent loaded (updates every 4min)"
+    if [ "${SKIP_LAUNCHAGENT_RELOAD:-0}" = "1" ]; then
+      warn "Skipping LaunchAgent reload (managed by updater)"
+    else
+      # Load the agent (unload first if already loaded)
+      local uid
+      uid=$(id -u)
+      launchctl bootout "gui/${uid}/com.suyash.wilson-updater" 2>/dev/null || true
+      launchctl bootstrap "gui/${uid}" "$plist_dest" 2>/dev/null || {
+        warn "Could not load LaunchAgent. Load it manually:"
+        warn "  launchctl bootstrap gui/${uid} ${plist_dest}"
+      }
+      ok "LaunchAgent loaded (updates every 4min)"
+    fi
   else
     warn "LaunchAgent plist not found in release, skipping"
   fi
