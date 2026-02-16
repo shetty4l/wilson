@@ -104,18 +104,60 @@ check_and_update_self() {
   log "INFO: wilson: new version ${latest} (current: ${current:-none})"
 
   local install_url="https://github.com/${repo}/releases/latest/download/install.sh"
-  curl -fsSL "$install_url" 2>/dev/null | bash >> "$LOG_FILE" 2>&1 || {
+  curl -fsSL "$install_url" 2>/dev/null | SKIP_LAUNCHAGENT_RELOAD=1 bash >> "$LOG_FILE" 2>&1 || {
     log "ERROR: wilson: install.sh failed"
     return 1
   }
 
   log "INFO: wilson: updated to ${latest}"
+
+  # Reload LaunchAgent asynchronously to avoid killing current process
+  (
+    sleep 2
+    local uid plist
+    uid=$(id -u)
+    plist="${HOME}/Library/LaunchAgents/com.suyash.wilson-updater.plist"
+
+    launchctl bootout "gui/${uid}/com.suyash.wilson-updater" 2>/dev/null || true
+    launchctl bootstrap "gui/${uid}" "$plist" || log "ERROR: LaunchAgent bootstrap failed during async reload"
+
+    # Verification: confirm agent is loaded and will run
+    sleep 1
+    if launchctl print "gui/${uid}/com.suyash.wilson-updater" >/dev/null 2>&1; then
+      log "INFO: LaunchAgent reloaded successfully"
+    else
+      log "ERROR: LaunchAgent reload failed, manual intervention required"
+    fi
+  ) & disown
 }
 
 # --- main ---
 
+verify_launch_agent() {
+  local uid plist
+  uid=$(id -u)
+  plist="${HOME}/Library/LaunchAgents/com.suyash.wilson-updater.plist"
+  if ! launchctl print "gui/${uid}/com.suyash.wilson-updater" >/dev/null 2>&1; then
+    log "WARN: LaunchAgent not loaded, attempting recovery reload"
+    if [ -f "$plist" ]; then
+      launchctl bootstrap "gui/${uid}" "$plist" || log "ERROR: LaunchAgent bootstrap failed during recovery"
+      sleep 1
+      if launchctl print "gui/${uid}/com.suyash.wilson-updater" >/dev/null 2>&1; then
+        log "INFO: LaunchAgent recovered successfully"
+      else
+        log "ERROR: LaunchAgent recovery failed"
+      fi
+    else
+      log "ERROR: LaunchAgent plist not found at ${plist}"
+    fi
+  fi
+}
+
 TARGET="${1:-all}"
 failures=0
+
+# Verify agent is loaded before processing
+verify_launch_agent
 
 case "$TARGET" in
   engram)
