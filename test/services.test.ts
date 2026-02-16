@@ -13,7 +13,7 @@ const HOME = homedir();
 
 describe("service registry", () => {
   test("has expected number of services", () => {
-    expect(SERVICES.length).toBe(2);
+    expect(SERVICES.length).toBe(3);
   });
 
   test("each service has all required fields", () => {
@@ -37,6 +37,13 @@ describe("service registry", () => {
     expect(engram!.repo).toBe("shetty4l/engram");
   });
 
+  test("getService returns correct cortex config", () => {
+    const cortex = getService("cortex");
+    expect(cortex).toBeDefined();
+    expect(cortex!.port).toBe(7751);
+    expect(cortex!.repo).toBe("shetty4l/cortex");
+  });
+
   test("getService returns undefined for unknown", () => {
     expect(getService("unknown")).toBeUndefined();
   });
@@ -45,13 +52,15 @@ describe("service registry", () => {
     const names = getServiceNames();
     expect(names).toContain("engram");
     expect(names).toContain("synapse");
-    expect(names.length).toBe(2);
+    expect(names).toContain("cortex");
+    expect(names.length).toBe(3);
   });
 
   test("getLogSources includes services and updater", () => {
     const sources = getLogSources();
     expect(sources).toContain("engram");
     expect(sources).toContain("synapse");
+    expect(sources).toContain("cortex");
     expect(sources).toContain("updater");
   });
 

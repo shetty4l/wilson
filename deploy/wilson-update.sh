@@ -8,7 +8,8 @@ set -uo pipefail
 # Services are checked in dependency order:
 #   1. engram (dependency of other services)
 #   2. synapse (model routing)
-#   3. wilson (self — last, since we're running from wilson's scripts)
+#   3. cortex (life assistant — depends on engram + synapse)
+#   4. wilson (self — last, since we're running from wilson's scripts)
 #
 # Each service's install.sh handles the heavy lifting (download, extract,
 # install deps, symlink). This script only does version comparison and
@@ -168,6 +169,10 @@ case "$TARGET" in
     log "INFO: update check starting (synapse only)"
     check_and_update "synapse" "shetty4l/synapse" || (( failures++ ))
     ;;
+  cortex)
+    log "INFO: update check starting (cortex only)"
+    check_and_update "cortex" "shetty4l/cortex" || (( failures++ ))
+    ;;
   self)
     log "INFO: update check starting (wilson self)"
     check_and_update_self || (( failures++ ))
@@ -177,10 +182,11 @@ case "$TARGET" in
     # Each check is independent — failure in one does not block the others
     check_and_update "engram"  "shetty4l/engram"  || (( failures++ ))
     check_and_update "synapse" "shetty4l/synapse" || (( failures++ ))
+    check_and_update "cortex"  "shetty4l/cortex"  || (( failures++ ))
     check_and_update_self                          || (( failures++ ))
     ;;
   *)
-    echo "Usage: wilson-update.sh [engram|synapse|self|all]" >&2
+    echo "Usage: wilson-update.sh [engram|synapse|cortex|self|all]" >&2
     exit 1
     ;;
 esac
