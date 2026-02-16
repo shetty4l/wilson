@@ -1,7 +1,7 @@
 # Wilson
 
 Deployment orchestration for the Wilson system. Manages updates and monitoring
-for Engram, Synapse, and itself on the Mac Mini.
+for Engram, Synapse, Cortex, and itself on the Mac Mini.
 
 ## Install
 
@@ -24,6 +24,7 @@ wilson version             Show Wilson + all service versions
 
 - `engram` — Engram daemon log
 - `synapse` — Synapse daemon log
+- `cortex` — Cortex daemon log
 - `updater` — Wilson update orchestrator log
 
 ### Options
@@ -45,7 +46,8 @@ CI, and install script. Wilson provides:
 wilson-update.sh (runs every 4min via LaunchAgent)
 ├── 1. Check Engram for updates → if newer: run engram install.sh, restart
 ├── 2. Check Synapse for updates → if newer: run synapse install.sh, restart
-└── 3. Check Wilson for updates → if newer: run wilson install.sh (self-update)
+├── 3. Check Cortex for updates → if newer: run cortex install.sh, restart
+└── 4. Check Wilson for updates → if newer: run wilson install.sh (self-update)
 ```
 
 Each check is independent — failure in one does not block the others.
@@ -56,6 +58,7 @@ Each check is independent — failure in one does not block the others.
 |---------|------|------|---------|
 | Engram  | shetty4l/engram  | 7749 | Persistent memory |
 | Synapse | shetty4l/synapse | 7750 | LLM routing proxy |
+| Cortex  | shetty4l/cortex  | 7751 | Life assistant |
 
 ## Paths
 
@@ -64,9 +67,11 @@ Each check is independent — failure in one does not block the others.
 | `~/srv/wilson/` | Wilson install (versioned dirs + `latest` symlink) |
 | `~/srv/engram/` | Engram install |
 | `~/srv/synapse/` | Synapse install |
+| `~/srv/cortex/` | Cortex install |
 | `~/.local/bin/wilson` | Wilson CLI |
 | `~/.local/bin/engram` | Engram CLI |
 | `~/.local/bin/synapse` | Synapse CLI |
+| `~/.local/bin/cortex` | Cortex CLI |
 | `~/Library/LaunchAgents/com.suyash.wilson-updater.plist` | Update LaunchAgent |
 | `~/Library/Logs/wilson-updater.log` | Update orchestrator log |
 
