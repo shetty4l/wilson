@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import { SERVICES, WILSON_CONFIG } from "./services";
 import { VERSION } from "./version";
 
@@ -18,6 +19,15 @@ async function checkService(
     version = readFileSync(svc.currentVersionFile, "utf-8").trim();
   }
 
+  // Read PID from daemon manager's PID file
+  const pidFile = join(svc.configDir, `${svc.name}.pid`);
+  let pid: number | null = null;
+  if (existsSync(pidFile)) {
+    const raw = readFileSync(pidFile, "utf-8").trim();
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isNaN(parsed)) pid = parsed;
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
@@ -26,7 +36,6 @@ async function checkService(
 
     const data = (await res.json()) as {
       status?: string;
-      pid?: number;
       version?: string;
     };
 
@@ -35,7 +44,7 @@ async function checkService(
       status: "running",
       version: data.version ?? version,
       port: svc.port,
-      pid: data.pid ?? null,
+      pid,
     };
   } catch {
     return {
