@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseArgs } from "../src/cli";
+import { parseArgs } from "@shetty4l/core/cli";
 
 describe("parseArgs", () => {
   test("extracts command and args", () => {

@@ -13,17 +13,17 @@
     "format:check": "biome check src/ test/",
     "test": "bun test",
     "validate": "bun run typecheck && bun run lint && bun run format:check && bun run test",
-    "version:bump": "bun run scripts/version-bump.ts",
+    "version:bump": "bunx version-bump",
     "prepare": "husky"
   },
   "dependencies": {
     "@shetty4l/core": ">=0.1.0 <1.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.13",
+    "@biomejs/biome": "^2.4.2",
     "@types/bun": "latest",
-    "husky": "^9.0.0",
+    "husky": "^9.1.7",
     "oxlint": "^0.12.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   }
 }
