@@ -64,7 +64,20 @@ check_and_update() {
 
   # Restart daemon if CLI exists
   if [ -x "$cli_path" ]; then
-    "$cli_path" restart >> "$LOG_FILE" 2>&1 || log "WARN: ${name}: restart failed"
+    "$cli_path" restart >> "$LOG_FILE" 2>&1 || {
+      log "WARN: ${name}: restart failed, retrying in 3s..."
+      sleep 3
+      "$cli_path" restart >> "$LOG_FILE" 2>&1 || {
+        log "ERROR: ${name}: restart failed on retry"
+        return 1
+      }
+    }
+
+    # Verify health after restart
+    sleep 2
+    "$cli_path" health >> "$LOG_FILE" 2>&1 || {
+      log "WARN: ${name}: post-restart health check failed"
+    }
   fi
 
   log "INFO: ${name}: updated to ${latest}"
