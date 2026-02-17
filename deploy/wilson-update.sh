@@ -125,24 +125,10 @@ check_and_update_self() {
 
   log "INFO: wilson: updated to ${latest}"
 
-  # Reload LaunchAgent asynchronously to avoid killing current process
-  (
-    sleep 2
-    local uid plist
-    uid=$(id -u)
-    plist="${HOME}/Library/LaunchAgents/com.suyash.wilson-updater.plist"
-
-    launchctl bootout "gui/${uid}/com.suyash.wilson-updater" 2>/dev/null || true
-    launchctl bootstrap "gui/${uid}" "$plist" || log "ERROR: LaunchAgent bootstrap failed during async reload"
-
-    # Verification: confirm agent is loaded and will run
-    sleep 1
-    if launchctl print "gui/${uid}/com.suyash.wilson-updater" >/dev/null 2>&1; then
-      log "INFO: LaunchAgent reloaded successfully"
-    else
-      log "ERROR: LaunchAgent reload failed, manual intervention required"
-    fi
-  ) & disown
+  # No LaunchAgent reload needed — the plist points to wilson/latest/deploy/
+  # which follows the symlink, so the next StartInterval tick automatically
+  # runs the new version. A bootout/bootstrap here would kill all processes
+  # in the LaunchAgent session, including freshly-started service daemons.
 }
 
 # --- main ---
