@@ -8,6 +8,7 @@ export interface ServiceConfig {
   port: number;
   healthUrl: string;
   installBase: string;
+  configDir: string;
   currentVersionFile: string;
   cliPath: string;
   logFiles: Record<string, string>;
@@ -23,6 +24,7 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7749,
     healthUrl: "http://localhost:7749/health",
     installBase: join(HOME, "srv", "engram"),
+    configDir: join(HOME, ".config", "engram"),
     currentVersionFile: join(HOME, "srv", "engram", "current-version"),
     cliPath: join(HOME, ".local", "bin", "engram"),
     logFiles: {
@@ -37,6 +39,7 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7750,
     healthUrl: "http://localhost:7750/health",
     installBase: join(HOME, "srv", "synapse"),
+    configDir: join(HOME, ".config", "synapse"),
     currentVersionFile: join(HOME, "srv", "synapse", "current-version"),
     cliPath: join(HOME, ".local", "bin", "synapse"),
     logFiles: {
@@ -51,6 +54,7 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7751,
     healthUrl: "http://localhost:7751/health",
     installBase: join(HOME, "srv", "cortex"),
+    configDir: join(HOME, ".config", "cortex"),
     currentVersionFile: join(HOME, "srv", "cortex", "current-version"),
     cliPath: join(HOME, ".local", "bin", "cortex"),
     logFiles: {
