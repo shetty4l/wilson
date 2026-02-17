@@ -24,6 +24,12 @@
   <key>StartInterval</key>
   <integer>240</integer>
 
+  <!-- Allow spawned service daemons to survive after the update script exits.
+       Without this, launchd sends SIGTERM to the entire process group on exit,
+       killing freshly-started engram/synapse/cortex daemons. -->
+  <key>AbandonProcessGroup</key>
+  <true/>
+
   <key>StandardOutPath</key>
   <string>${HOME}/Library/Logs/wilson-updater.log</string>
   <key>StandardErrorPath</key>
