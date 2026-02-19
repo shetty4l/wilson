@@ -1,7 +1,10 @@
 import { join } from "path";
 import { getService, getServiceNames } from "./services";
 
-export async function cmdUpdate(args: string[], json: boolean): Promise<void> {
+export async function cmdUpdate(
+  args: string[],
+  json: boolean,
+): Promise<number> {
   const serviceName = args[0];
 
   // Resolve the update script path relative to this repo
@@ -10,10 +13,13 @@ export async function cmdUpdate(args: string[], json: boolean): Promise<void> {
 
   if (serviceName) {
     // Validate service name
-    if (serviceName !== "self" && !getService(serviceName)) {
-      console.error(`Error: unknown service "${serviceName}"`);
-      console.error(`Services: ${getServiceNames().join(", ")}, self`);
-      process.exit(1);
+    if (serviceName !== "self") {
+      const svcResult = getService(serviceName);
+      if (!svcResult.ok) {
+        console.error(`Error: ${svcResult.error}`);
+        console.error(`Services: ${getServiceNames().join(", ")}, self`);
+        return 1;
+      }
     }
 
     if (!json) {
@@ -39,10 +45,7 @@ export async function cmdUpdate(args: string[], json: boolean): Promise<void> {
       );
     }
 
-    if (exitCode !== 0) {
-      process.exit(exitCode);
-    }
-    return;
+    return exitCode;
   }
 
   // Run full update check
@@ -65,7 +68,5 @@ export async function cmdUpdate(args: string[], json: boolean): Promise<void> {
     );
   }
 
-  if (exitCode !== 0) {
-    process.exit(exitCode);
-  }
+  return exitCode;
 }

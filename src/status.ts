@@ -1,7 +1,13 @@
+import { err, ok, type Result } from "@shetty4l/core/result";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { SERVICES, WILSON_CONFIG } from "./services";
 import { VERSION } from "./version";
+
+interface HealthResponse {
+  status?: string;
+  version?: string;
+}
 
 interface ServiceStatus {
   name: string;
@@ -9,6 +15,28 @@ interface ServiceStatus {
   version: string;
   port: number | null;
   pid: number | null;
+}
+
+async function fetchHealth(
+  url: string,
+): Promise<Result<HealthResponse, string>> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    const data = (await res.json()) as HealthResponse;
+    return ok(data);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return err("request timed out");
+    }
+    if (e instanceof TypeError && e.message.includes("Unable to connect")) {
+      return err("connection refused");
+    }
+    return err(e instanceof Error ? e.message : "unknown error");
+  }
 }
 
 async function checkService(
@@ -28,33 +56,25 @@ async function checkService(
     if (!Number.isNaN(parsed)) pid = parsed;
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(svc.healthUrl, { signal: controller.signal });
-    clearTimeout(timeout);
+  const result = await fetchHealth(svc.healthUrl);
 
-    const data = (await res.json()) as {
-      status?: string;
-      version?: string;
-    };
-
+  if (result.ok) {
     return {
       name: svc.name,
       status: "running",
-      version: data.version ?? version,
+      version: result.value.version ?? version,
       port: svc.port,
       pid,
     };
-  } catch {
-    return {
-      name: svc.name,
-      status: existsSync(svc.cliPath) ? "stopped" : "unreachable",
-      version,
-      port: null,
-      pid: null,
-    };
   }
+
+  return {
+    name: svc.name,
+    status: existsSync(svc.cliPath) ? "stopped" : "unreachable",
+    version,
+    port: null,
+    pid: null,
+  };
 }
 
 export async function cmdStatus(json: boolean): Promise<void> {

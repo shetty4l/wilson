@@ -31,21 +31,26 @@ describe("service registry", () => {
   });
 
   test("getService returns correct service", () => {
-    const engram = getService("engram");
-    expect(engram).toBeDefined();
-    expect(engram!.port).toBe(7749);
-    expect(engram!.repo).toBe("shetty4l/engram");
+    const result = getService("engram");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.value.port).toBe(7749);
+    expect(result.value.repo).toBe("shetty4l/engram");
   });
 
   test("getService returns correct cortex config", () => {
-    const cortex = getService("cortex");
-    expect(cortex).toBeDefined();
-    expect(cortex!.port).toBe(7751);
-    expect(cortex!.repo).toBe("shetty4l/cortex");
+    const result = getService("cortex");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.value.port).toBe(7751);
+    expect(result.value.repo).toBe("shetty4l/cortex");
   });
 
-  test("getService returns undefined for unknown", () => {
-    expect(getService("unknown")).toBeUndefined();
+  test("getService returns err for unknown", () => {
+    const result = getService("unknown");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected err");
+    expect(result.error).toBe('unknown service "unknown"');
   });
 
   test("getServiceNames returns all names", () => {
