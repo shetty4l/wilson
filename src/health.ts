@@ -1,3 +1,4 @@
+import { err, ok, type Result } from "@shetty4l/core/result";
 import { SERVICES } from "./services";
 
 interface ProviderHealth {
@@ -22,33 +23,50 @@ interface ServiceHealth {
   error: string | null;
 }
 
-async function checkHealth(
-  svc: (typeof SERVICES)[number],
-): Promise<ServiceHealth> {
+async function fetchHealth(
+  url: string,
+): Promise<Result<HealthResponse, string>> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(svc.healthUrl, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
     const data = (await res.json()) as HealthResponse;
+    return ok(data);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return err("request timed out");
+    }
+    if (e instanceof TypeError && e.message.includes("Unable to connect")) {
+      return err("connection refused");
+    }
+    return err(e instanceof Error ? e.message : "not reachable");
+  }
+}
 
+async function checkHealth(
+  svc: (typeof SERVICES)[number],
+): Promise<ServiceHealth> {
+  const result = await fetchHealth(svc.healthUrl);
+
+  if (result.ok) {
     return {
       name: svc.name,
       port: svc.port,
       reachable: true,
-      data,
+      data: result.value,
       error: null,
     };
-  } catch {
-    return {
-      name: svc.name,
-      port: svc.port,
-      reachable: false,
-      data: null,
-      error: "not reachable",
-    };
   }
+
+  return {
+    name: svc.name,
+    port: svc.port,
+    reachable: false,
+    data: null,
+    error: result.error,
+  };
 }
 
 export async function cmdHealth(json: boolean): Promise<void> {
@@ -63,7 +81,7 @@ export async function cmdHealth(json: boolean): Promise<void> {
     console.log(`\n=== ${r.name} (port ${r.port}) ===`);
 
     if (!r.reachable) {
-      console.log("  Status: not reachable");
+      console.log(`  Status: not reachable (${r.error})`);
       continue;
     }
 

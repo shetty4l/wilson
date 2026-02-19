@@ -13,12 +13,14 @@ export async function cmdRestart(
     return 1;
   }
 
-  const svc = getService(serviceName);
-  if (!svc) {
-    console.error(`Error: unknown service "${serviceName}"`);
+  const result = getService(serviceName);
+  if (!result.ok) {
+    console.error(`Error: ${result.error}`);
     console.error(`Services: ${getServiceNames().join(", ")}`);
     return 1;
   }
+
+  const svc = result.value;
 
   if (!existsSync(svc.cliPath)) {
     if (json) {

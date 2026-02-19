@@ -1,3 +1,4 @@
+import { err, ok, type Result } from "@shetty4l/core/result";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -76,8 +77,10 @@ export const WILSON_CONFIG = {
   },
 } as const;
 
-export function getService(name: string): ServiceConfig | undefined {
-  return SERVICES.find((s) => s.name === name);
+export function getService(name: string): Result<ServiceConfig, string> {
+  const svc = SERVICES.find((s) => s.name === name);
+  if (!svc) return err(`unknown service "${name}"`);
+  return ok(svc);
 }
 
 export function getServiceNames(): string[] {
