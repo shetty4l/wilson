@@ -1,3 +1,4 @@
+import { getConfigDir, getDataDir } from "@shetty4l/core/config";
 import { err, ok, type Result } from "@shetty4l/core/result";
 import { homedir } from "os";
 import { join } from "path";
@@ -10,6 +11,7 @@ export interface ServiceConfig {
   healthUrl: string;
   installBase: string;
   configDir: string;
+  dataDir?: string;
   currentVersionFile: string;
   cliPath: string;
   logFiles: Record<string, string>;
@@ -25,12 +27,12 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7749,
     healthUrl: "http://localhost:7749/health",
     installBase: join(HOME, "srv", "engram"),
-    configDir: join(HOME, ".config", "engram"),
+    configDir: getConfigDir("engram"),
+    dataDir: getDataDir("engram"),
     currentVersionFile: join(HOME, "srv", "engram", "current-version"),
     cliPath: join(HOME, ".local", "bin", "engram"),
     logFiles: {
-      daemon: join(HOME, ".config", "engram", "engram.log"),
-      updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
+      daemon: join(getConfigDir("engram"), "engram.log"),
     },
   },
   {
@@ -40,12 +42,11 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7750,
     healthUrl: "http://localhost:7750/health",
     installBase: join(HOME, "srv", "synapse"),
-    configDir: join(HOME, ".config", "synapse"),
+    configDir: getConfigDir("synapse"),
     currentVersionFile: join(HOME, "srv", "synapse", "current-version"),
     cliPath: join(HOME, ".local", "bin", "synapse"),
     logFiles: {
-      daemon: join(HOME, ".config", "synapse", "synapse.log"),
-      updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
+      daemon: join(getConfigDir("synapse"), "synapse.log"),
     },
   },
   {
@@ -55,15 +56,17 @@ export const SERVICES: readonly ServiceConfig[] = [
     port: 7751,
     healthUrl: "http://localhost:7751/health",
     installBase: join(HOME, "srv", "cortex"),
-    configDir: join(HOME, ".config", "cortex"),
+    configDir: getConfigDir("cortex"),
+    dataDir: getDataDir("cortex"),
     currentVersionFile: join(HOME, "srv", "cortex", "current-version"),
     cliPath: join(HOME, ".local", "bin", "cortex"),
     logFiles: {
-      daemon: join(HOME, ".config", "cortex", "cortex.log"),
-      updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
+      daemon: join(getConfigDir("cortex"), "cortex.log"),
     },
   },
 ] as const;
+
+export const UPDATER_LOG = join(HOME, "Library", "Logs", "wilson-updater.log");
 
 export const WILSON_CONFIG = {
   name: "wilson",
@@ -72,9 +75,6 @@ export const WILSON_CONFIG = {
   installBase: join(HOME, "srv", "wilson"),
   currentVersionFile: join(HOME, "srv", "wilson", "current-version"),
   cliPath: join(HOME, ".local", "bin", "wilson"),
-  logFiles: {
-    updater: join(HOME, "Library", "Logs", "wilson-updater.log"),
-  },
 } as const;
 
 export function getService(name: string): Result<ServiceConfig, string> {
