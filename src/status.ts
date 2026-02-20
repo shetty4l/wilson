@@ -15,6 +15,7 @@ interface ServiceStatus {
   version: string;
   port: number | null;
   pid: number | null;
+  error?: string;
 }
 
 async function fetchHealth(
@@ -74,6 +75,7 @@ async function checkService(
     version,
     port: null,
     pid: null,
+    error: result.error,
   };
 }
 
@@ -120,9 +122,10 @@ export async function cmdStatus(json: boolean): Promise<void> {
     const port = r.port ? String(r.port) : "-";
     const pid = r.pid ? String(r.pid) : "-";
 
-    console.log(
-      `${r.name.padEnd(nameW)}  ${status.padEnd(statusW)}  ${r.version.padEnd(versionW)}  ${port.padEnd(portW)}  ${pid}`,
-    );
+    let line = `${r.name.padEnd(nameW)}  ${status.padEnd(statusW)}  ${r.version.padEnd(versionW)}  ${port.padEnd(portW)}  ${pid}`;
+    if (r.error) line += `  (${r.error})`;
+
+    console.log(line);
   }
 
   console.log();
