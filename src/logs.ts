@@ -6,7 +6,7 @@ import { getLogSources, getService } from "./services";
 const SUPERVISOR_LOG = join(getConfigDir("wilson"), "wilson-ctl.log");
 
 /**
- * Wilson logs command — takes a <source> argument (service name or "updater")
+ * Wilson logs command — takes a <source> argument (service name or "supervisor")
  * and delegates to createLogsCommand from core for the actual file tailing.
  */
 export async function cmdLogs(args: string[], json: boolean): Promise<number> {

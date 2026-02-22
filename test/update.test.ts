@@ -404,7 +404,7 @@ describe("checkAndUpdate", () => {
 
   test("returns updated: false when versions match", async () => {
     const svc = makeSvc();
-    writeFileSync(svc.currentVersionFile, "0.3.0\n");
+    writeFileSync(svc.currentVersionFile, "v0.3.0\n");
 
     const restoreFetch = mockFetch(
       () =>
@@ -426,7 +426,7 @@ describe("checkAndUpdate", () => {
 
   test("returns updated: true with from/to on success", async () => {
     const svc = makeSvc();
-    writeFileSync(svc.currentVersionFile, "0.2.0\n");
+    writeFileSync(svc.currentVersionFile, "v0.2.0\n");
 
     const restoreFetch = mockFetch(
       () =>

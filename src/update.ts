@@ -25,7 +25,8 @@ export function readCurrentVersion(svc: ServiceConfig): string | null {
   try {
     if (!existsSync(svc.currentVersionFile)) return null;
     const content = readFileSync(svc.currentVersionFile, "utf-8").trim();
-    return content || null;
+    if (!content) return null;
+    return content.replace(/^v/, "");
   } catch {
     return null;
   }
