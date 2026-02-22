@@ -214,7 +214,7 @@ describe("runUpdateCheck", () => {
 
     // All services up-to-date (same version)
     const restoreFetch = mockFetch((url) => {
-      if (url.includes("api.github.com")) {
+      if (new URL(url).hostname === "api.github.com") {
         // Extract repo name from URL for logging
         return new Response(JSON.stringify({ tag_name: "v0.2.0" }), {
           status: 200,
@@ -254,7 +254,7 @@ describe("runUpdateCheck", () => {
   test("returns selfUpdateInstalled: true when wilson is updated", async () => {
     // Mock: wilson has older version, latest is newer
     const restoreFetch = mockFetch((url) => {
-      if (url.includes("api.github.com")) {
+      if (new URL(url).hostname === "api.github.com") {
         return new Response(JSON.stringify({ tag_name: "v99.0.0" }), {
           status: 200,
         });
@@ -290,7 +290,7 @@ describe("runUpdateCheck", () => {
 
   test("returns selfUpdateInstalled: false for non-wilson updates", async () => {
     const restoreFetch = mockFetch((url) => {
-      if (url.includes("api.github.com")) {
+      if (new URL(url).hostname === "api.github.com") {
         return new Response(JSON.stringify({ tag_name: "v99.0.0" }), {
           status: 200,
         });

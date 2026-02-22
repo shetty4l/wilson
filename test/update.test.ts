@@ -41,7 +41,7 @@ function mockFetch(
         : input instanceof URL
           ? input.toString()
           : input.url;
-    if (url.includes("api.github.com")) {
+    if (new URL(url).hostname === "api.github.com") {
       return handler(url, init);
     }
     return original(input, init);
