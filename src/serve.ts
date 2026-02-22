@@ -1,6 +1,9 @@
 import { createServer, type HttpServer } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import { onShutdown } from "@shetty4l/core/signals";
+import { CalendarChannel } from "./channels/calendar/index";
+import { CortexClient } from "./channels/cortex-client";
+import { ChannelRegistry } from "./channels/index";
 import { loadConfig } from "./config";
 import { VERSION } from "./version";
 
@@ -11,6 +14,9 @@ const log = createLogger("wilson");
  *
  * Returns void (no exit code) so runCli keeps the process alive.
  * Graceful shutdown is handled via onShutdown.
+ *
+ * Startup order:  server -> channels.startAll()
+ * Shutdown order: channels.stopAll() -> server.stop()
  */
 export async function cmdServe(): Promise<void> {
   const configResult = loadConfig();
@@ -20,9 +26,9 @@ export async function cmdServe(): Promise<void> {
   }
 
   const config = configResult.value;
-  let server: HttpServer | undefined;
 
-  server = createServer({
+  // --- HTTP server ---
+  const server: HttpServer = createServer({
     name: "wilson",
     port: config.port,
     host: config.host,
@@ -30,14 +36,31 @@ export async function cmdServe(): Promise<void> {
     onRequest: () => null,
   });
 
+  log(`server started on ${config.host}:${server.port} (v${VERSION})`);
+
+  // --- Channels ---
+  const cortex = new CortexClient(config.cortex.url, config.cortex.apiKey);
+  const registry = new ChannelRegistry();
+
+  if (config.channels.calendar.enabled) {
+    const calendar = new CalendarChannel(cortex, {
+      pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
+      lookAheadDays: config.channels.calendar.lookAheadDays,
+      extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
+    });
+    registry.register(calendar);
+  }
+
+  await registry.startAll();
+
+  // --- Shutdown ---
   onShutdown(
-    () => {
+    async () => {
       log("shutting down...");
-      server?.stop();
+      await registry.stopAll();
+      server.stop();
       log("stopped");
     },
     { name: "wilson", timeoutMs: 10_000 },
   );
-
-  log(`server started on ${config.host}:${server.port} (v${VERSION})`);
 }
