@@ -1,5 +1,9 @@
 import { createLogsCommand } from "@shetty4l/core/cli";
-import { getLogSources, getService, UPDATER_LOG } from "./services";
+import { homedir } from "os";
+import { join } from "path";
+import { getLogSources, getService } from "./services";
+
+const UPDATER_LOG = join(homedir(), "Library", "Logs", "wilson-updater.log");
 
 /**
  * Wilson logs command — takes a <source> argument (service name or "updater")

@@ -8,7 +8,7 @@ interface ProviderHealth {
   consecutiveFailures: number;
 }
 
-interface HealthResponse {
+export interface HealthResponse {
   status: string;
   version?: string;
   providers?: ProviderHealth[];
@@ -23,7 +23,7 @@ interface ServiceHealth {
   error: string | null;
 }
 
-async function fetchHealth(
+export async function fetchHealth(
   url: string,
 ): Promise<Result<HealthResponse, string>> {
   try {
