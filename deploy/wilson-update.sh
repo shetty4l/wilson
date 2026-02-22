@@ -17,6 +17,13 @@ set -uo pipefail
 
 LOG_FILE="${HOME}/Library/Logs/wilson-updater.log"
 
+# --- GitHub token for authenticated API calls (avoids rate limits) ---
+GITHUB_TOKEN_FILE="${HOME}/.config/wilson/github-token"
+if [ -f "$GITHUB_TOKEN_FILE" ]; then
+  GITHUB_TOKEN=$(cat "$GITHUB_TOKEN_FILE")
+  export GITHUB_TOKEN
+fi
+
 log() { echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] $*" >> "$LOG_FILE"; }
 
 # --- version check + update for a service ---
@@ -28,6 +35,12 @@ check_and_update() {
   local current_file="${install_base}/current-version"
   local cli_path="${HOME}/.local/bin/${name}"
 
+  # Auth header for GitHub API (if token available)
+  local auth_header=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+
   # Read current version
   local current=""
   if [ -f "$current_file" ]; then
@@ -36,7 +49,7 @@ check_and_update() {
 
   # Fetch latest tag from GitHub
   local release_json
-  release_json=$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null) || {
+  release_json=$(curl -fsSL "${auth_header[@]}" "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null) || {
     log "ERROR: ${name}: failed to fetch latest release"
     return 1
   }
@@ -57,7 +70,7 @@ check_and_update() {
 
   # Delegate to the service's own installer
   local install_url="https://github.com/${repo}/releases/latest/download/install.sh"
-  curl -fsSL "$install_url" 2>/dev/null | bash >> "$LOG_FILE" 2>&1 || {
+  curl -fsSL "${auth_header[@]}" "$install_url" 2>/dev/null | GITHUB_TOKEN="${GITHUB_TOKEN:-}" bash >> "$LOG_FILE" 2>&1 || {
     log "ERROR: ${name}: install.sh failed"
     return 1
   }
@@ -93,13 +106,19 @@ check_and_update_self() {
   local install_base="${HOME}/srv/wilson"
   local current_file="${install_base}/current-version"
 
+  # Auth header for GitHub API (if token available)
+  local auth_header=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+
   local current=""
   if [ -f "$current_file" ]; then
     current=$(cat "$current_file")
   fi
 
   local release_json
-  release_json=$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null) || {
+  release_json=$(curl -fsSL "${auth_header[@]}" "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null) || {
     log "ERROR: wilson: failed to fetch latest release"
     return 1
   }
@@ -118,7 +137,7 @@ check_and_update_self() {
   log "INFO: wilson: new version ${latest} (current: ${current:-none})"
 
   local install_url="https://github.com/${repo}/releases/latest/download/install.sh"
-  curl -fsSL "$install_url" 2>/dev/null | SKIP_LAUNCHAGENT_RELOAD=1 bash >> "$LOG_FILE" 2>&1 || {
+  curl -fsSL "${auth_header[@]}" "$install_url" 2>/dev/null | SKIP_LAUNCHAGENT_RELOAD=1 GITHUB_TOKEN="${GITHUB_TOKEN:-}" bash >> "$LOG_FILE" 2>&1 || {
     log "ERROR: wilson: install.sh failed"
     return 1
   }

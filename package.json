@@ -4,7 +4,8 @@
   "description": "Deployment orchestration for the Wilson system",
   "type": "module",
   "bin": {
-    "wilson": "./src/cli.ts"
+    "wilson": "./src/cli.ts",
+    "wilson-ctl": "./src/ctl-cli.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
