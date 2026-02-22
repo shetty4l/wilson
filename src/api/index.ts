@@ -1,35 +1,146 @@
 import type { WilsonConfig } from "../config";
+import { fetchHealth, type HealthResponse } from "../health";
+import { getServices } from "../services";
+import { handleRestartAction, handleUpdateAction } from "./actions";
 import { computeIndicators } from "./indicators";
 import { fetchAllStats } from "./stats";
+
+export interface ServiceHealthInfo {
+  name: string;
+  port: number;
+  status: "running" | "stopped";
+  version: string | null;
+  healthy: boolean;
+}
+
+/**
+ * Fetch health for all services.
+ */
+async function fetchAllHealth(
+  config: WilsonConfig,
+): Promise<ServiceHealthInfo[]> {
+  const services = getServices(config);
+
+  const results = await Promise.all(
+    services.map(async (svc) => {
+      const result = await fetchHealth(svc.healthUrl);
+
+      if (result.ok) {
+        const data = result.value as HealthResponse;
+        return {
+          name: svc.name,
+          port: svc.port,
+          status: "running" as const,
+          version: data.version ?? null,
+          healthy: data.status === "healthy",
+        };
+      }
+
+      return {
+        name: svc.name,
+        port: svc.port,
+        status: "stopped" as const,
+        version: null,
+        healthy: false,
+      };
+    }),
+  );
+
+  return results;
+}
 
 /**
  * Handle API requests for /api/* paths.
  * Returns null for non-matching paths (404).
  */
 export async function handleApiRequest(
-  _req: Request,
+  req: Request,
   url: URL,
   config: WilsonConfig,
 ): Promise<Response | null> {
   const path = url.pathname;
+  const method = req.method;
 
   // GET /api/stats
-  if (path === "/api/stats") {
+  if (path === "/api/stats" && method === "GET") {
     const stats = await fetchAllStats(config);
     return Response.json(stats);
   }
 
   // GET /api/indicators
-  if (path === "/api/indicators") {
+  if (path === "/api/indicators" && method === "GET") {
     const stats = await fetchAllStats(config);
     const indicators = computeIndicators(stats);
     return Response.json(indicators);
+  }
+
+  // GET /api/health
+  if (path === "/api/health" && method === "GET") {
+    const health = await fetchAllHealth(config);
+    return Response.json(health);
+  }
+
+  // POST /api/actions/restart
+  if (path === "/api/actions/restart" && method === "POST") {
+    try {
+      const body = (await req.json()) as { service?: string };
+      const serviceName = body?.service;
+
+      if (!serviceName || typeof serviceName !== "string") {
+        return Response.json(
+          { success: false, error: "service name required" },
+          { status: 400 },
+        );
+      }
+
+      const result = await handleRestartAction(serviceName, config);
+
+      if (result.ok) {
+        return Response.json({ success: true });
+      }
+
+      return Response.json({ success: false, error: result.error });
+    } catch {
+      return Response.json(
+        { success: false, error: "invalid request body" },
+        { status: 400 },
+      );
+    }
+  }
+
+  // POST /api/actions/update
+  if (path === "/api/actions/update" && method === "POST") {
+    try {
+      const body = (await req.json()) as { service?: string };
+      const serviceName = body?.service;
+
+      if (!serviceName || typeof serviceName !== "string") {
+        return Response.json(
+          { success: false, error: "service name required" },
+          { status: 400 },
+        );
+      }
+
+      const result = await handleUpdateAction(serviceName, config);
+
+      if (result.ok) {
+        return Response.json({ success: true, ...result.value });
+      }
+
+      return Response.json({ success: false, error: result.error });
+    } catch {
+      return Response.json(
+        { success: false, error: "invalid request body" },
+        { status: 400 },
+      );
+    }
   }
 
   // Not an API route we handle
   return null;
 }
 
+export { handleRestartAction, handleUpdateAction } from "./actions";
 export type { Indicator, IndicatorStatus } from "./indicators";
 export { computeIndicators } from "./indicators";
 // Re-export types for convenience
