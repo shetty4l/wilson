@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { homedir } from "os";
 import { join } from "path";
+import type { WilsonConfig } from "../src/config";
 import {
   getLogSources,
   getService,
   getServiceNames,
+  getServices,
   SERVICES,
 } from "../src/services";
 
@@ -80,5 +82,77 @@ describe("service registry", () => {
     expect(result.value.installBase).toBe(join(HOME, "srv", "wilson"));
     expect(result.value.cliPath).toBe(join(HOME, ".local", "bin", "wilson"));
     expect(result.value.healthUrl).toBe("http://localhost:7748/health");
+  });
+
+  test("getServices returns services with config URLs", () => {
+    const config: WilsonConfig = {
+      port: 7748,
+      host: "0.0.0.0",
+      cortex: { url: "http://localhost:7751", apiKey: "test" },
+      services: {
+        engram: { url: "http://engram.example.com:9000" },
+        synapse: { url: "http://synapse.example.com:9001" },
+        cortex: { url: "http://cortex.example.com:9002" },
+      },
+      channels: {
+        calendar: {
+          enabled: false,
+          pollIntervalSeconds: 600,
+          lookAheadDays: 14,
+          extendedLookAheadDays: 30,
+        },
+      },
+    };
+
+    const services = getServices(config);
+
+    const engram = services.find((s) => s.name === "engram");
+    expect(engram?.healthUrl).toBe("http://engram.example.com:9000/health");
+
+    const synapse = services.find((s) => s.name === "synapse");
+    expect(synapse?.healthUrl).toBe("http://synapse.example.com:9001/health");
+
+    const cortex = services.find((s) => s.name === "cortex");
+    expect(cortex?.healthUrl).toBe("http://cortex.example.com:9002/health");
+
+    // Wilson uses localhost for health when host is 0.0.0.0
+    const wilson = services.find((s) => s.name === "wilson");
+    expect(wilson?.healthUrl).toBe("http://localhost:7748/health");
+  });
+
+  test("getService with config returns config-aware healthUrl", () => {
+    const config: WilsonConfig = {
+      port: 8080,
+      host: "192.168.1.1",
+      cortex: { url: "http://localhost:7751", apiKey: "test" },
+      services: {
+        engram: { url: "http://engram.lan" },
+        synapse: { url: "http://localhost:7750" },
+        cortex: { url: "http://localhost:7751" },
+      },
+      channels: {
+        calendar: {
+          enabled: false,
+          pollIntervalSeconds: 600,
+          lookAheadDays: 14,
+          extendedLookAheadDays: 30,
+        },
+      },
+    };
+
+    const engramResult = getService("engram", config);
+    expect(engramResult.ok).toBe(true);
+    if (engramResult.ok) {
+      expect(engramResult.value.healthUrl).toBe("http://engram.lan/health");
+    }
+
+    // Wilson uses the actual host when it's not 0.0.0.0
+    const wilsonResult = getService("wilson", config);
+    expect(wilsonResult.ok).toBe(true);
+    if (wilsonResult.ok) {
+      expect(wilsonResult.value.healthUrl).toBe(
+        "http://192.168.1.1:8080/health",
+      );
+    }
   });
 });

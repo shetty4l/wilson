@@ -15,10 +15,21 @@ export interface CortexConfig {
   apiKey: string;
 }
 
+export interface ServiceUrlConfig {
+  url: string;
+}
+
+export interface ServicesConfig {
+  engram: ServiceUrlConfig;
+  synapse: ServiceUrlConfig;
+  cortex: ServiceUrlConfig;
+}
+
 export interface WilsonConfig {
   port: number;
   host: string;
   cortex: CortexConfig;
+  services: ServicesConfig;
   channels: {
     calendar: CalendarChannelConfig;
   };
@@ -32,6 +43,11 @@ const DEFAULTS: WilsonConfig = {
   cortex: {
     url: "http://localhost:7751",
     apiKey: "",
+  },
+  services: {
+    engram: { url: "http://localhost:7749" },
+    synapse: { url: "http://localhost:7750" },
+    cortex: { url: "http://localhost:7751" },
   },
   channels: {
     calendar: {
@@ -68,6 +84,16 @@ export function loadConfig(): Result<WilsonConfig> {
     ...cortexRaw,
   };
 
+  const servicesRaw = (raw.services ?? {}) as Record<string, unknown>;
+  const engramRaw = (servicesRaw.engram ?? {}) as Record<string, unknown>;
+  const synapseRaw = (servicesRaw.synapse ?? {}) as Record<string, unknown>;
+  const cortexSvcRaw = (servicesRaw.cortex ?? {}) as Record<string, unknown>;
+  const services: ServicesConfig = {
+    engram: { ...DEFAULTS.services.engram, ...engramRaw },
+    synapse: { ...DEFAULTS.services.synapse, ...synapseRaw },
+    cortex: { ...DEFAULTS.services.cortex, ...cortexSvcRaw },
+  };
+
   const channelsRaw = (raw.channels ?? {}) as Record<string, unknown>;
   const calendarRaw = (channelsRaw.calendar ?? {}) as Record<string, unknown>;
   const calendar: CalendarChannelConfig = {
@@ -79,6 +105,7 @@ export function loadConfig(): Result<WilsonConfig> {
     port: (raw.port as number) ?? DEFAULTS.port,
     host: (raw.host as string) ?? DEFAULTS.host,
     cortex,
+    services,
     channels: { calendar },
   };
 

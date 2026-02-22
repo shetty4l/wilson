@@ -1,0 +1,141 @@
+/* NERV Control Room Theme - Global Styles */
+
+/* TODO: Self-host fonts for Tailscale-only environments.
+   For now, using Google Fonts CDN as fallback.
+   Download Exo 2 (400, 600, 700) and JetBrains Mono (400, 500)
+   and place in public/fonts/ */
+@import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "Exo 2", system-ui, sans-serif;
+    background-color: #0a0a0f;
+    color: #e0e0e0;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: #0a0a0f;
+  }
+}
+
+@layer components {
+  /* Grid background pattern */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(42, 42, 58, 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(42, 42, 58, 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Bracket corner decorations */
+  .bracket-corners {
+    position: relative;
+  }
+
+  .bracket-corners::before,
+  .bracket-corners::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: #ffbf00;
+    pointer-events: none;
+  }
+
+  .bracket-corners::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+  }
+
+  .bracket-corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 2px solid;
+    border-right: 2px solid;
+  }
+
+  /* Additional bracket corners (inner pseudo-elements via JS or extra spans) */
+  .bracket-corners-full {
+    position: relative;
+  }
+
+  /* Glow effects */
+  .glow-amber {
+    box-shadow: 0 0 20px rgba(255, 191, 0, 0.3);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 15px rgba(255, 45, 45, 0.3);
+  }
+
+  /* Status indicator base */
+  .status-dot {
+    @apply w-3 h-3 rounded-full;
+  }
+
+  .status-dot-green {
+    @apply bg-green-nerv animate-pulse-slow;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+  }
+
+  .status-dot-yellow {
+    @apply bg-amber-nerv animate-pulse-fast;
+    box-shadow: 0 0 10px rgba(255, 191, 0, 0.6);
+  }
+
+  .status-dot-red {
+    @apply bg-red-nerv animate-pulse-fast;
+    box-shadow: 0 0 10px rgba(255, 45, 45, 0.6);
+  }
+
+  /* Card styles */
+  .indicator-card {
+    @apply bg-nerv-surface border border-nerv-border rounded-sm p-4;
+    @apply transition-all duration-200;
+  }
+
+  .indicator-card:hover {
+    @apply border-nerv-border-glow;
+  }
+
+  .indicator-card[data-status="green"]:hover {
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+  }
+
+  .indicator-card[data-status="yellow"]:hover {
+    box-shadow: 0 0 15px rgba(255, 191, 0, 0.15);
+  }
+
+  .indicator-card[data-status="red"]:hover {
+    box-shadow: 0 0 15px rgba(255, 45, 45, 0.15);
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: "Exo 2", system-ui, sans-serif;
+  }
+
+  .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  .text-nerv {
+    color: #e0e0e0;
+  }
+
+  .text-nerv-muted {
+    color: #6b6b80;
+  }
+}
