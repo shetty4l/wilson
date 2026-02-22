@@ -14,6 +14,7 @@ export interface ReceivePayload {
   externalId: string;
   data: unknown;
   occurredAt: string;
+  mode?: "realtime" | "buffered";
   metadata?: Record<string, unknown>;
 }
 

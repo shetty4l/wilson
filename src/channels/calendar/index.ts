@@ -114,6 +114,7 @@ export class CalendarChannel implements Channel {
         externalId: `cal-sync-${Date.now()}`,
         data: { events: sorted, windowDays },
         occurredAt: new Date().toISOString(),
+        mode: "buffered",
       });
 
       if (result.ok) {

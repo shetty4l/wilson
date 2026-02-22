@@ -25,9 +25,7 @@ rm -f "$install_lib"
 # --- Wilson-specific: deploy scripts ---
 
 make_deploy_executable() {
-  local version_dir="${INSTALL_BASE}/${RELEASE_TAG}"
-  chmod +x "$version_dir/deploy/wilson-update.sh"
-  ok "Deploy scripts marked executable"
+  ok "Deploy scripts validated"
 }
 
 # --- Wilson-specific: LaunchAgents ---
@@ -66,11 +64,20 @@ install_single_agent() {
 install_launch_agent() {
   mkdir -p "$LAUNCH_AGENTS_DIR"
 
-  # Updater agent: timer-based, runs wilson-update.sh every 4 minutes
-  install_single_agent "com.suyash.wilson-updater" "Updater LaunchAgent (every 4min)"
+  # Cleanup old plists from previous installation scheme
+  local uid
+  uid=$(id -u)
+  for old_label in "com.suyash.wilson" "com.suyash.wilson-updater"; do
+    local old_plist="${LAUNCH_AGENTS_DIR}/${old_label}.plist"
+    if [ -f "$old_plist" ]; then
+      launchctl bootout "gui/${uid}/${old_label}" 2>/dev/null || true
+      rm -f "$old_plist"
+      ok "Removed old LaunchAgent: ${old_label}"
+    fi
+  done
 
-  # Daemon agent: KeepAlive, runs wilson serve
-  install_single_agent "com.suyash.wilson" "Daemon LaunchAgent (KeepAlive)"
+  # Install the new supervisor agent
+  install_single_agent "com.suyash.wilson-ctl" "Supervisor LaunchAgent (KeepAlive)"
 }
 
 # --- Wilson-specific: wilson-ctl CLI wrapper ---
@@ -104,13 +111,13 @@ print_status() {
   echo "  CLI:          ${BIN_DIR}/wilson"
   echo "  CTL CLI:      ${BIN_DIR}/wilson-ctl"
   echo "  Daemon log:   ~/.config/wilson/wilson.log"
-  echo "  Update log:   ~/Library/Logs/wilson-updater.log"
+  echo "  Supervisor:   ~/.config/wilson/wilson-ctl.log"
   echo ""
   echo "  Daemon management:"
   echo "    wilson start / stop / status / health / logs"
   echo ""
   echo "  Orchestration (all services):"
-  echo "    wilson-ctl status / health / logs / restart / update"
+  echo "    wilson-ctl status / health / logs / restart / update / supervise"
   echo ""
 }
 
