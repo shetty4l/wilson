@@ -98,5 +98,5 @@ export function getServiceNames(): string[] {
  * Includes each service name + "updater" for the wilson update log.
  */
 export function getLogSources(): string[] {
-  return [...getServiceNames(), "updater"];
+  return [...getServiceNames(), "updater", "wilson"];
 }
