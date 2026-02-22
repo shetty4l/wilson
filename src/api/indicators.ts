@@ -145,35 +145,61 @@ function computeReasoning(stats: ServiceStats): Indicator {
   const p50Seconds = msToSeconds(stats.cortex.processing.p50_ms);
   const errors = stats.cortex.inbox.failed_1h;
 
-  // Red: p50 > 15s OR errors > 5
-  if (p50Seconds > 15 || errors > 5) {
+  // Calculate synapse error rate (LLM errors impact reasoning)
+  const synapseErrorRate =
+    stats.synapse && stats.synapse.requests.total_1h > 0
+      ? stats.synapse.requests.errors_1h / stats.synapse.requests.total_1h
+      : 0;
+
+  // Get synapse latency for context in detail message
+  const synapseP50 = stats.synapse
+    ? msToSeconds(stats.synapse.latency.p50_ms)
+    : null;
+
+  // Helper to build detail message with synapse context
+  const buildDetail = (includeErrors: boolean): string => {
+    const parts = [`p50 ${p50Seconds.toFixed(1)}s`];
+    if (synapseP50 !== null) {
+      parts.push(`synapse ${synapseP50.toFixed(1)}s`);
+    }
+    if (includeErrors && errors > 0) {
+      parts.push(`${errors} errors/1h`);
+    }
+    if (synapseErrorRate > 0.05) {
+      parts.push(`${(synapseErrorRate * 100).toFixed(0)}% LLM errors`);
+    }
+    return parts.join(", ");
+  };
+
+  // Red: p50 > 15s OR errors > 5 OR synapse error rate > 20%
+  if (p50Seconds > 15 || errors > 5 || synapseErrorRate > 0.2) {
     return {
       id,
       name,
       status: "red",
       label: "Slow",
-      detail: `p50 ${p50Seconds.toFixed(1)}s, ${errors} errors/1h`,
+      detail: buildDetail(true),
     };
   }
 
-  // Yellow: p50 5-15s OR errors 1-5
-  if (p50Seconds > 5 || errors >= 1) {
+  // Yellow: p50 5-15s OR errors 1-5 OR synapse error rate > 5%
+  if (p50Seconds > 5 || errors >= 1 || synapseErrorRate > 0.05) {
     return {
       id,
       name,
       status: "yellow",
       label: "Lagging",
-      detail: `p50 ${p50Seconds.toFixed(1)}s, ${errors} errors/1h`,
+      detail: buildDetail(true),
     };
   }
 
-  // Green: p50 < 5s, errors 0
+  // Green: p50 < 5s, errors 0, synapse error rate <= 5%
   return {
     id,
     name,
     status: "green",
     label: "Fast",
-    detail: `p50 ${p50Seconds.toFixed(1)}s`,
+    detail: buildDetail(false),
   };
 }
 
@@ -308,6 +334,12 @@ function computeModels(stats: ServiceStats): Indicator {
   const healthy = providers.filter((p) => p.healthy).length;
   const total = providers.length;
 
+  // Calculate error rate from requests
+  const requests = stats.synapse.requests;
+  const errorRate =
+    requests.total_1h > 0 ? requests.errors_1h / requests.total_1h : 0;
+  const errorPct = (errorRate * 100).toFixed(0);
+
   // Red: all down
   if (healthy === 0) {
     return {
@@ -319,7 +351,18 @@ function computeModels(stats: ServiceStats): Indicator {
     };
   }
 
-  // Yellow: some unhealthy
+  // Red: error rate > 20%
+  if (errorRate > 0.2) {
+    return {
+      id,
+      name,
+      status: "red",
+      label: "High Errors",
+      detail: `${errorPct}% error rate (${requests.errors_1h}/${requests.total_1h})`,
+    };
+  }
+
+  // Yellow: some unhealthy OR error rate > 5%
   if (healthy < total) {
     return {
       id,
@@ -330,7 +373,17 @@ function computeModels(stats: ServiceStats): Indicator {
     };
   }
 
-  // Green: all healthy
+  if (errorRate > 0.05) {
+    return {
+      id,
+      name,
+      status: "yellow",
+      label: "Degraded",
+      detail: `${errorPct}% error rate (${requests.errors_1h}/${requests.total_1h})`,
+    };
+  }
+
+  // Green: all healthy AND error rate <= 5%
   return {
     id,
     name,
