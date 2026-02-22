@@ -3,6 +3,7 @@ import { fetchHealth, type HealthResponse } from "../health";
 import { getServices } from "../services";
 import { handleRestartAction, handleUpdateAction } from "./actions";
 import { computeIndicators } from "./indicators";
+import { ALLOWED_SERVICES, handleLogsStream, isAllowedService } from "./logs";
 import { fetchAllStats } from "./stats";
 
 export interface ServiceHealthInfo {
@@ -80,6 +81,31 @@ export async function handleApiRequest(
     return Response.json(health);
   }
 
+  // GET /api/logs/stream
+  if (path === "/api/logs/stream" && method === "GET") {
+    const service = url.searchParams.get("service");
+
+    if (!service) {
+      return Response.json(
+        {
+          error: `service query param required. Allowed: ${ALLOWED_SERVICES.join(", ")}`,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!isAllowedService(service)) {
+      return Response.json(
+        {
+          error: `Invalid service: ${service}. Allowed: ${ALLOWED_SERVICES.join(", ")}`,
+        },
+        { status: 400 },
+      );
+    }
+
+    return handleLogsStream(service);
+  }
+
   // POST /api/actions/restart
   if (path === "/api/actions/restart" && method === "POST") {
     try {
@@ -143,6 +169,7 @@ export async function handleApiRequest(
 export { handleRestartAction, handleUpdateAction } from "./actions";
 export type { Indicator, IndicatorStatus } from "./indicators";
 export { computeIndicators } from "./indicators";
+export { ALLOWED_SERVICES, handleLogsStream, isAllowedService } from "./logs";
 // Re-export types for convenience
 export type { HealthStatus, ServiceStats } from "./stats";
 export { fetchAllStats } from "./stats";
