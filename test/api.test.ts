@@ -18,26 +18,26 @@ function makeFullStats(overrides?: Partial<ServiceStats>): ServiceStats {
     engram: {
       memories: { total: 100, with_embedding_pct: 100 },
       operations: {
-        recall_1h: 50,
-        remember_1h: 10,
-        recall_hit_rate_1h: 0.9,
-        recall_fallback_rate_1h: 0.1,
+        recall_24h: 50,
+        remember_24h: 10,
+        recall_hit_rate_24h: 0.9,
+        recall_fallback_rate_24h: 0.1,
       },
       latency: { recall_p50_ms: 100, recall_p95_ms: 200, recall_p99_ms: 300 },
     },
     synapse: {
       buffer: { capacity: 100, size: 10, oldest_entry_at: null },
-      requests: { total_1h: 100, errors_1h: 0, by_provider: {} },
+      requests: { total_24h: 100, errors_24h: 0, by_provider: {} },
       latency: { p50_ms: 500, p95_ms: 1000, p99_ms: 2000 },
-      fallbacks: { count_1h: 0 },
+      fallbacks: { count_24h: 0 },
       providers: [
         { name: "openai", healthy: true, consecutiveFailures: 0 },
         { name: "anthropic", healthy: true, consecutiveFailures: 0 },
       ],
     },
     cortex: {
-      inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 0 },
-      outbox: { pending: 0, delivered_1h: 5, dead_total: 0 },
+      inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 0 },
+      outbox: { pending: 0, delivered_24h: 5, dead_total: 0 },
       receptors: {
         calendar_last_sync_at: new Date().toISOString(),
         calendar_buffer_pending: 0,
@@ -189,7 +189,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 5, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 5, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -203,7 +203,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 2 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 2 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -216,7 +216,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 15, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 15, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -230,7 +230,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 5 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 5 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -243,7 +243,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 3, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 0, processing: 3, done_24h: 10, failed_24h: 0 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -281,7 +281,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 3 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 3 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -308,7 +308,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 10 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 10 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -323,11 +323,11 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 0 },
         },
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 25, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 25, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -342,11 +342,11 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
-          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 0 },
         },
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 10, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 10, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -443,7 +443,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          outbox: { pending: 5, delivered_1h: 10, dead_total: 0 },
+          outbox: { pending: 5, delivered_24h: 10, dead_total: 0 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -457,7 +457,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          outbox: { pending: 15, delivered_1h: 10, dead_total: 0 },
+          outbox: { pending: 15, delivered_24h: 10, dead_total: 0 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -471,7 +471,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          outbox: { pending: 0, delivered_1h: 10, dead_total: 1 },
+          outbox: { pending: 0, delivered_24h: 10, dead_total: 1 },
         },
       });
       const indicators = computeIndicators(stats);
@@ -553,7 +553,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 25, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 25, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -568,7 +568,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 10, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 10, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -583,7 +583,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 3, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 3, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -597,7 +597,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 0, errors_1h: 0, by_provider: {} },
+          requests: { total_24h: 0, errors_24h: 0, by_provider: {} },
         },
       });
       const indicators = computeIndicators(stats);
@@ -612,7 +612,7 @@ describe("computeIndicators", () => {
       const stats = makeFullStats({
         synapse: {
           ...makeFullStats().synapse!,
-          requests: { total_1h: 100, errors_1h: 30, by_provider: {} },
+          requests: { total_24h: 100, errors_24h: 30, by_provider: {} },
           providers: [
             { name: "openai", healthy: true, consecutiveFailures: 0 },
             { name: "anthropic", healthy: true, consecutiveFailures: 0 },
@@ -712,7 +712,7 @@ describe("computeIndicators", () => {
       const stats2 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 2, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 2, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       expect(getIndicator(computeIndicators(stats2), "triage").status).toBe(
@@ -722,7 +722,7 @@ describe("computeIndicators", () => {
       const stats3 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 3, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 3, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       expect(getIndicator(computeIndicators(stats3), "triage").status).toBe(
@@ -732,7 +732,7 @@ describe("computeIndicators", () => {
       const stats10 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 10, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 10, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       expect(getIndicator(computeIndicators(stats10), "triage").status).toBe(
@@ -742,7 +742,7 @@ describe("computeIndicators", () => {
       const stats11 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 11, processing: 0, done_1h: 10, failed_1h: 0 },
+          inbox: { pending: 11, processing: 0, done_24h: 10, failed_24h: 0 },
         },
       });
       expect(getIndicator(computeIndicators(stats11), "triage").status).toBe(
@@ -795,10 +795,10 @@ describe("computeIndicators", () => {
         engram: {
           memories: { total: 50, with_embedding_pct: 100 },
           operations: {
-            recall_1h: 10,
-            remember_1h: 5,
-            recall_hit_rate_1h: 0.8,
-            recall_fallback_rate_1h: 0.2,
+            recall_24h: 10,
+            remember_24h: 5,
+            recall_hit_rate_24h: 0.8,
+            recall_fallback_rate_24h: 0.2,
           },
           latency: {
             recall_p50_ms: 50,

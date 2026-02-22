@@ -10,10 +10,10 @@ export interface EngramStats {
     with_embedding_pct: number;
   };
   operations: {
-    recall_1h: number;
-    remember_1h: number;
-    recall_hit_rate_1h: number;
-    recall_fallback_rate_1h: number;
+    recall_24h: number;
+    remember_24h: number;
+    recall_hit_rate_24h: number;
+    recall_fallback_rate_24h: number;
   };
   latency: {
     recall_p50_ms: number;
@@ -37,8 +37,8 @@ export interface SynapseStats {
     oldest_entry_at: string | null;
   };
   requests: {
-    total_1h: number;
-    errors_1h: number;
+    total_24h: number;
+    errors_24h: number;
     by_provider: Record<string, number>;
   };
   latency: {
@@ -47,7 +47,7 @@ export interface SynapseStats {
     p99_ms: number;
   };
   fallbacks: {
-    count_1h: number;
+    count_24h: number;
   };
   providers: SynapseProvider[];
 }
@@ -58,12 +58,12 @@ export interface CortexStats {
   inbox: {
     pending: number;
     processing: number;
-    done_1h: number;
-    failed_1h: number;
+    done_24h: number;
+    failed_24h: number;
   };
   outbox: {
     pending: number;
-    delivered_1h: number;
+    delivered_24h: number;
     dead_total: number;
   };
   receptors: {
