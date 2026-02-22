@@ -1,6 +1,7 @@
 import type { WilsonConfig } from "../config";
 import { fetchHealth, type HealthResponse } from "../health";
 import { getServices } from "../services";
+import { fetchLatestVersion, readGithubToken } from "../update";
 import { handleRestartAction, handleUpdateAction } from "./actions";
 import { computeIndicators } from "./indicators";
 import { ALLOWED_SERVICES, handleLogsStream, isAllowedService } from "./logs";
@@ -11,28 +12,40 @@ export interface ServiceHealthInfo {
   port: number;
   status: "running" | "stopped";
   version: string | null;
+  latestVersion: string | null;
   healthy: boolean;
 }
 
 /**
- * Fetch health for all services.
+ * Fetch health for all services, including latest version from GitHub.
  */
 async function fetchAllHealth(
   config: WilsonConfig,
 ): Promise<ServiceHealthInfo[]> {
   const services = getServices(config);
+  const token = readGithubToken();
 
+  // Fetch health and latest versions in parallel
   const results = await Promise.all(
     services.map(async (svc) => {
-      const result = await fetchHealth(svc.healthUrl);
+      // Fetch health and latest version in parallel for each service
+      const [healthResult, latestVersionResult] = await Promise.all([
+        fetchHealth(svc.healthUrl),
+        fetchLatestVersion(svc, token),
+      ]);
 
-      if (result.ok) {
-        const data = result.value as HealthResponse;
+      const latestVersion = latestVersionResult.ok
+        ? latestVersionResult.value
+        : null;
+
+      if (healthResult.ok) {
+        const data = healthResult.value as HealthResponse;
         return {
           name: svc.name,
           port: svc.port,
           status: "running" as const,
           version: data.version ?? null,
+          latestVersion,
           healthy: data.status === "healthy",
         };
       }
@@ -42,6 +55,7 @@ async function fetchAllHealth(
         port: svc.port,
         status: "stopped" as const,
         version: null,
+        latestVersion,
         healthy: false,
       };
     }),
