@@ -76,8 +76,7 @@ export async function installUpdate(
   token: string | null,
 ): Promise<Result<void, string>> {
   const env: Record<string, string> = {
-    PATH: process.env.PATH ?? "",
-    HOME: process.env.HOME ?? homedir(),
+    ...process.env,
     SKIP_LAUNCHAGENT_RELOAD: "1",
   };
   if (token) {
@@ -88,8 +87,8 @@ export async function installUpdate(
 
   try {
     const proc = Bun.spawn(["bash", "-c", installCmd], {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "inherit",
+      stderr: "inherit",
       env,
     });
 
@@ -109,10 +108,7 @@ export async function installUpdate(
     }
 
     if (result !== 0) {
-      const stderr = proc.stderr ? await new Response(proc.stderr).text() : "";
-      return err(
-        `install failed for ${svc.name} (exit ${result})${stderr ? `: ${stderr.trim()}` : ""}`,
-      );
+      return err(`install failed for ${svc.name} (exit ${result})`);
     }
 
     return ok(undefined);
