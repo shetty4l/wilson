@@ -80,8 +80,6 @@ export const SERVICES: readonly ServiceConfig[] = [
   },
 ] as const;
 
-export const UPDATER_LOG = join(HOME, "Library", "Logs", "wilson-updater.log");
-
 export function getService(name: string): Result<ServiceConfig, string> {
   const svc = SERVICES.find((s) => s.name === name);
   if (!svc) return err(`unknown service "${name}"`);
