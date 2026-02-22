@@ -1,0 +1,248 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Wilson Dashboard">
+  <div class="space-y-6">
+    <!-- Section header -->
+    <div class="flex items-center justify-between">
+      <h2 class="font-heading font-semibold text-lg text-text">
+        System Health
+      </h2>
+      <button
+        id="refresh-btn"
+        class="font-mono text-xs text-amber-nerv hover:text-orange-nerv transition-colors px-2 py-1 border border-nerv-border hover:border-amber-nerv rounded"
+      >
+        REFRESH
+      </button>
+    </div>
+
+    <!-- Indicator grid -->
+    <div
+      id="indicators-grid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+    >
+      <!-- Cards will be populated by JavaScript -->
+      <div class="indicator-card bracket-corners col-span-full">
+        <div class="flex items-center justify-center py-8">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-4 h-4 border-2 border-amber-nerv border-t-transparent rounded-full animate-spin"
+            >
+            </div>
+            <span class="font-mono text-sm text-text-muted">
+              Loading indicators...
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raw metrics panel (expanded view) -->
+    <div
+      id="raw-metrics-panel"
+      class="hidden bg-nerv-surface border border-nerv-border rounded-sm"
+    >
+      <div class="border-b border-nerv-border px-4 py-2 flex items-center justify-between">
+        <h3 id="metrics-title" class="font-heading font-semibold text-sm text-amber-nerv">
+          Raw Metrics
+        </h3>
+        <button
+          id="close-metrics"
+          class="text-text-muted hover:text-text transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="metrics-content" class="p-4">
+        <pre class="font-mono text-xs text-text overflow-x-auto"></pre>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  interface Indicator {
+    id: string;
+    name: string;
+    status: "green" | "yellow" | "red";
+    label: string;
+    detail: string;
+    metrics?: Record<string, unknown>;
+  }
+
+  const STATUS_COLORS = {
+    green: {
+      dot: "status-dot-green",
+      label: "text-green-nerv",
+    },
+    yellow: {
+      dot: "status-dot-yellow",
+      label: "text-amber-nerv",
+    },
+    red: {
+      dot: "status-dot-red",
+      label: "text-red-nerv",
+    },
+  } as const;
+
+  let indicators: Indicator[] = [];
+  let selectedIndicator: Indicator | null = null;
+
+  function formatTime(date: Date): string {
+    return date.toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  function createIndicatorCard(indicator: Indicator): HTMLElement {
+    const colors = STATUS_COLORS[indicator.status];
+    
+    const card = document.createElement("div");
+    card.className = "indicator-card bracket-corners cursor-pointer";
+    card.dataset.status = indicator.status;
+    card.dataset.id = indicator.id;
+    
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="status-dot ${colors.dot}"></div>
+            <h3 class="font-heading font-semibold text-sm text-text truncate">
+              ${indicator.name}
+            </h3>
+          </div>
+          <p class="font-mono text-xs ${colors.label} mb-2">
+            ${indicator.label}
+          </p>
+          <p class="font-mono text-xs text-text-muted line-clamp-2">
+            ${indicator.detail}
+          </p>
+        </div>
+      </div>
+    `;
+
+    card.addEventListener("click", () => showMetrics(indicator));
+    return card;
+  }
+
+  function showMetrics(indicator: Indicator): void {
+    selectedIndicator = indicator;
+    const panel = document.getElementById("raw-metrics-panel");
+    const title = document.getElementById("metrics-title");
+    const content = document.getElementById("metrics-content")?.querySelector("pre");
+    
+    if (panel && title && content) {
+      title.textContent = `${indicator.name} — Raw Metrics`;
+      content.textContent = JSON.stringify(indicator.metrics || {}, null, 2);
+      panel.classList.remove("hidden");
+    }
+  }
+
+  function hideMetrics(): void {
+    selectedIndicator = null;
+    const panel = document.getElementById("raw-metrics-panel");
+    if (panel) {
+      panel.classList.add("hidden");
+    }
+  }
+
+  function renderIndicators(): void {
+    const grid = document.getElementById("indicators-grid");
+    if (!grid) return;
+
+    grid.innerHTML = "";
+
+    if (indicators.length === 0) {
+      grid.innerHTML = `
+        <div class="indicator-card bracket-corners col-span-full">
+          <div class="flex items-center justify-center py-8">
+            <span class="font-mono text-sm text-text-muted">
+              No indicators available
+            </span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    for (const indicator of indicators) {
+      grid.appendChild(createIndicatorCard(indicator));
+    }
+
+    // Update metrics panel if an indicator is selected
+    if (selectedIndicator) {
+      const updated = indicators.find((i) => i.id === selectedIndicator?.id);
+      if (updated) {
+        showMetrics(updated);
+      }
+    }
+  }
+
+  async function fetchIndicators(): Promise<void> {
+    try {
+      const response = await fetch("/api/indicators");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      indicators = await response.json();
+      renderIndicators();
+      
+      // Update timestamp
+      const timestamp = document.getElementById("last-updated");
+      if (timestamp) {
+        timestamp.textContent = formatTime(new Date());
+      }
+    } catch (error) {
+      console.error("Failed to fetch indicators:", error);
+      // Show error state
+      const grid = document.getElementById("indicators-grid");
+      if (grid) {
+        grid.innerHTML = `
+          <div class="indicator-card bracket-corners col-span-full border-red-nerv">
+            <div class="flex items-center justify-center py-8">
+              <div class="text-center">
+                <p class="font-mono text-sm text-red-nerv mb-1">
+                  Failed to fetch indicators
+                </p>
+                <p class="font-mono text-xs text-text-muted">
+                  ${error instanceof Error ? error.message : "Unknown error"}
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", () => {
+    fetchIndicators();
+
+    // Auto-refresh every 60 seconds
+    setInterval(fetchIndicators, 60_000);
+
+    // Manual refresh button
+    const refreshBtn = document.getElementById("refresh-btn");
+    refreshBtn?.addEventListener("click", fetchIndicators);
+
+    // Close metrics panel
+    const closeBtn = document.getElementById("close-metrics");
+    closeBtn?.addEventListener("click", hideMetrics);
+  });
+</script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

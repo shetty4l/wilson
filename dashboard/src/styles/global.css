@@ -6,136 +6,160 @@
    and place in public/fonts/ */
 @import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  html {
-    font-family: "Exo 2", system-ui, sans-serif;
-    background-color: #0a0a0f;
-    color: #e0e0e0;
-  }
-
-  body {
-    min-height: 100vh;
-    background-color: #0a0a0f;
-  }
+/* Custom theme tokens using Tailwind 4's CSS-based config */
+@theme {
+  /* NERV Colors */
+  --color-nerv-bg: #0a0a0f;
+  --color-nerv-surface: #12121a;
+  --color-nerv-border: #2a2a3a;
+  --color-nerv-border-glow: #3a3a4a;
+  
+  /* Accent Colors */
+  --color-amber-nerv: #ffbf00;
+  --color-orange-nerv: #ff6b00;
+  --color-red-nerv: #ff2d2d;
+  --color-green-nerv: #00ff88;
+  
+  /* Text Colors */
+  --color-text: #e0e0e0;
+  --color-text-muted: #6b6b80;
+  
+  /* Fonts */
+  --font-heading: "Exo 2", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  
+  /* Animations */
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-pulse-fast: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@layer components {
-  /* Grid background pattern */
-  .bg-grid {
-    background-image:
-      linear-gradient(rgba(42, 42, 58, 0.3) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(42, 42, 58, 0.3) 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-
-  /* Bracket corner decorations */
-  .bracket-corners {
-    position: relative;
-  }
-
-  .bracket-corners::before,
-  .bracket-corners::after {
-    content: "";
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border-color: #ffbf00;
-    pointer-events: none;
-  }
-
-  .bracket-corners::before {
-    top: -1px;
-    left: -1px;
-    border-top: 2px solid;
-    border-left: 2px solid;
-  }
-
-  .bracket-corners::after {
-    bottom: -1px;
-    right: -1px;
-    border-bottom: 2px solid;
-    border-right: 2px solid;
-  }
-
-  /* Additional bracket corners (inner pseudo-elements via JS or extra spans) */
-  .bracket-corners-full {
-    position: relative;
-  }
-
-  /* Glow effects */
-  .glow-amber {
-    box-shadow: 0 0 20px rgba(255, 191, 0, 0.3);
-  }
-
-  .glow-green {
-    box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
-  }
-
-  .glow-red {
-    box-shadow: 0 0 15px rgba(255, 45, 45, 0.3);
-  }
-
-  /* Status indicator base */
-  .status-dot {
-    @apply w-3 h-3 rounded-full;
-  }
-
-  .status-dot-green {
-    @apply bg-green-nerv animate-pulse-slow;
-    box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
-  }
-
-  .status-dot-yellow {
-    @apply bg-amber-nerv animate-pulse-fast;
-    box-shadow: 0 0 10px rgba(255, 191, 0, 0.6);
-  }
-
-  .status-dot-red {
-    @apply bg-red-nerv animate-pulse-fast;
-    box-shadow: 0 0 10px rgba(255, 45, 45, 0.6);
-  }
-
-  /* Card styles */
-  .indicator-card {
-    @apply bg-nerv-surface border border-nerv-border rounded-sm p-4;
-    @apply transition-all duration-200;
-  }
-
-  .indicator-card:hover {
-    @apply border-nerv-border-glow;
-  }
-
-  .indicator-card[data-status="green"]:hover {
-    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
-  }
-
-  .indicator-card[data-status="yellow"]:hover {
-    box-shadow: 0 0 15px rgba(255, 191, 0, 0.15);
-  }
-
-  .indicator-card[data-status="red"]:hover {
-    box-shadow: 0 0 15px rgba(255, 45, 45, 0.15);
-  }
+/* Base styles */
+html {
+  font-family: var(--font-heading);
+  background-color: var(--color-nerv-bg);
+  color: var(--color-text);
 }
 
-@layer utilities {
-  .font-heading {
-    font-family: "Exo 2", system-ui, sans-serif;
-  }
+body {
+  min-height: 100vh;
+  background-color: var(--color-nerv-bg);
+}
 
-  .font-mono {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-  }
+/* Grid background pattern */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(42, 42, 58, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(42, 42, 58, 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
 
-  .text-nerv {
-    color: #e0e0e0;
-  }
+/* Bracket corner decorations */
+.bracket-corners {
+  position: relative;
+}
 
-  .text-nerv-muted {
-    color: #6b6b80;
-  }
+.bracket-corners::before,
+.bracket-corners::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--color-amber-nerv);
+  pointer-events: none;
+}
+
+.bracket-corners::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+
+.bracket-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+}
+
+/* Glow effects */
+.glow-amber {
+  box-shadow: 0 0 20px rgba(255, 191, 0, 0.3);
+}
+
+.glow-green {
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 15px rgba(255, 45, 45, 0.3);
+}
+
+/* Status indicator base */
+.status-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+}
+
+.status-dot-green {
+  background-color: var(--color-green-nerv);
+  animation: var(--animate-pulse-slow);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+}
+
+.status-dot-yellow {
+  background-color: var(--color-amber-nerv);
+  animation: var(--animate-pulse-fast);
+  box-shadow: 0 0 10px rgba(255, 191, 0, 0.6);
+}
+
+.status-dot-red {
+  background-color: var(--color-red-nerv);
+  animation: var(--animate-pulse-fast);
+  box-shadow: 0 0 10px rgba(255, 45, 45, 0.6);
+}
+
+/* Card styles */
+.indicator-card {
+  background-color: var(--color-nerv-surface);
+  border: 1px solid var(--color-nerv-border);
+  border-radius: 0.125rem;
+  padding: 1rem;
+  transition: all 0.2s;
+}
+
+.indicator-card:hover {
+  border-color: var(--color-nerv-border-glow);
+}
+
+.indicator-card[data-status="green"]:hover {
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+}
+
+.indicator-card[data-status="yellow"]:hover {
+  box-shadow: 0 0 15px rgba(255, 191, 0, 0.15);
+}
+
+.indicator-card[data-status="red"]:hover {
+  box-shadow: 0 0 15px rgba(255, 45, 45, 0.15);
+}
+
+/* Utility classes */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.text-nerv {
+  color: var(--color-text);
+}
+
+.text-nerv-muted {
+  color: var(--color-text-muted);
 }
