@@ -93,7 +93,7 @@ function computeTriage(stats: ServiceStats): Indicator {
 
   const inbox = stats.cortex.inbox;
   const pending = inbox.pending;
-  const failed = inbox.failed_1h;
+  const failed = inbox.failed_24h;
   const processing = inbox.processing;
 
   // Red: pending > 10 OR failed > 3 OR processing > 1
@@ -124,7 +124,7 @@ function computeTriage(stats: ServiceStats): Indicator {
     name,
     status: "green",
     label: "Clear",
-    detail: `${pending} pending, ${inbox.done_1h} done/1h`,
+    detail: `${pending} pending, ${inbox.done_24h} done/1h`,
   };
 }
 
@@ -143,12 +143,12 @@ function computeReasoning(stats: ServiceStats): Indicator {
   }
 
   const p50Seconds = msToSeconds(stats.cortex.processing.p50_ms);
-  const errors = stats.cortex.inbox.failed_1h;
+  const errors = stats.cortex.inbox.failed_24h;
 
   // Calculate synapse error rate (LLM errors impact reasoning)
   const synapseErrorRate =
-    stats.synapse && stats.synapse.requests.total_1h > 0
-      ? stats.synapse.requests.errors_1h / stats.synapse.requests.total_1h
+    stats.synapse && stats.synapse.requests.total_24h > 0
+      ? stats.synapse.requests.errors_24h / stats.synapse.requests.total_24h
       : 0;
 
   // Get synapse latency for context in detail message
@@ -287,7 +287,7 @@ function computeExpression(stats: ServiceStats): Indicator {
       name,
       status: "red",
       label: "Backlog",
-      detail: `${pending} pending, ${outbox.delivered_1h} delivered/1h`,
+      detail: `${pending} pending, ${outbox.delivered_24h} delivered/1h`,
     };
   }
 
@@ -298,7 +298,7 @@ function computeExpression(stats: ServiceStats): Indicator {
       name,
       status: "yellow",
       label: "Queued",
-      detail: `${pending} pending, ${outbox.delivered_1h} delivered/1h`,
+      detail: `${pending} pending, ${outbox.delivered_24h} delivered/1h`,
     };
   }
 
@@ -308,7 +308,7 @@ function computeExpression(stats: ServiceStats): Indicator {
     name,
     status: "green",
     label: "Clear",
-    detail: `${pending} pending, ${outbox.delivered_1h} delivered/1h`,
+    detail: `${pending} pending, ${outbox.delivered_24h} delivered/1h`,
   };
 }
 
@@ -337,7 +337,7 @@ function computeModels(stats: ServiceStats): Indicator {
   // Calculate error rate from requests
   const requests = stats.synapse.requests;
   const errorRate =
-    requests.total_1h > 0 ? requests.errors_1h / requests.total_1h : 0;
+    requests.total_24h > 0 ? requests.errors_24h / requests.total_24h : 0;
   const errorPct = (errorRate * 100).toFixed(0);
 
   // Red: all down
@@ -358,7 +358,7 @@ function computeModels(stats: ServiceStats): Indicator {
       name,
       status: "red",
       label: "High Errors",
-      detail: `${errorPct}% error rate (${requests.errors_1h}/${requests.total_1h})`,
+      detail: `${errorPct}% error rate (${requests.errors_24h}/${requests.total_24h})`,
     };
   }
 
@@ -379,7 +379,7 @@ function computeModels(stats: ServiceStats): Indicator {
       name,
       status: "yellow",
       label: "Degraded",
-      detail: `${errorPct}% error rate (${requests.errors_1h}/${requests.total_1h})`,
+      detail: `${errorPct}% error rate (${requests.errors_24h}/${requests.total_24h})`,
     };
   }
 

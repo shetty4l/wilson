@@ -239,10 +239,10 @@ try {
         | undefined;
       const operations = s.operations as
         | {
-            recall_1h: number;
-            remember_1h: number;
-            recall_hit_rate_1h: number;
-            recall_fallback_rate_1h: number;
+            recall_24h: number;
+            remember_24h: number;
+            recall_hit_rate_24h: number;
+            recall_fallback_rate_24h: number;
           }
         | undefined;
       const latency = s.latency as
@@ -265,22 +265,22 @@ try {
             </div>
           </div>
           <div>
-            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Operations (1h)</div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Operations (24h)</div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <div class="font-mono text-lg text-text">${formatNumber(operations?.recall_1h)}</div>
+                <div class="font-mono text-lg text-text">${formatNumber(operations?.recall_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Recalls</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-text">${formatNumber(operations?.remember_1h)}</div>
+                <div class="font-mono text-lg text-text">${formatNumber(operations?.remember_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Remembers</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_hit_rate_1h)}</div>
+                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_hit_rate_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Hit Rate</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_fallback_rate_1h)}</div>
+                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_fallback_rate_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Fallback Rate</div>
               </div>
             </div>
@@ -310,15 +310,15 @@ try {
         | undefined;
       const requests = s.requests as
         | {
-            total_1h: number;
-            errors_1h: number;
+            total_24h: number;
+            errors_24h: number;
             by_provider: Record<string, number>;
           }
         | undefined;
       const latency = s.latency as
         | { p50_ms: number; p95_ms: number; p99_ms: number }
         | undefined;
-      const fallbacks = s.fallbacks as { count_1h: number } | undefined;
+      const fallbacks = s.fallbacks as { count_24h: number } | undefined;
       const providers = s.providers as
         | Array<{
             name: string;
@@ -364,18 +364,18 @@ try {
             </div>
           </div>
           <div>
-            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Requests (1h)</div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Requests (24h)</div>
             <div class="grid grid-cols-3 gap-3">
               <div>
-                <div class="font-mono text-lg text-text">${formatNumber(requests?.total_1h)}</div>
+                <div class="font-mono text-lg text-text">${formatNumber(requests?.total_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Total</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-red-nerv">${formatNumber(requests?.errors_1h)}</div>
+                <div class="font-mono text-lg text-red-nerv">${formatNumber(requests?.errors_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Errors</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-orange-nerv">${formatNumber(fallbacks?.count_1h)}</div>
+                <div class="font-mono text-lg text-orange-nerv">${formatNumber(fallbacks?.count_24h)}</div>
                 <div class="font-mono text-xs text-text-muted">Fallbacks</div>
               </div>
             </div>
@@ -408,12 +408,12 @@ try {
         | {
             pending: number;
             processing: number;
-            done_1h: number;
-            failed_1h: number;
+            done_24h: number;
+            failed_24h: number;
           }
         | undefined;
       const outbox = s.outbox as
-        | { pending: number; delivered_1h: number; dead_total: number }
+        | { pending: number; delivered_24h: number; dead_total: number }
         | undefined;
       const receptors = s.receptors as
         | {
@@ -440,12 +440,12 @@ try {
                 <div class="font-mono text-xs text-text-muted">Processing</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-green-nerv">${formatNumber(inbox?.done_1h)}</div>
-                <div class="font-mono text-xs text-text-muted">Done (1h)</div>
+                <div class="font-mono text-lg text-green-nerv">${formatNumber(inbox?.done_24h)}</div>
+                <div class="font-mono text-xs text-text-muted">Done (24h)</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-red-nerv">${formatNumber(inbox?.failed_1h)}</div>
-                <div class="font-mono text-xs text-text-muted">Failed (1h)</div>
+                <div class="font-mono text-lg text-red-nerv">${formatNumber(inbox?.failed_24h)}</div>
+                <div class="font-mono text-xs text-text-muted">Failed (24h)</div>
               </div>
             </div>
           </div>
@@ -457,8 +457,8 @@ try {
                 <div class="font-mono text-xs text-text-muted">Pending</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-green-nerv">${formatNumber(outbox?.delivered_1h)}</div>
-                <div class="font-mono text-xs text-text-muted">Delivered (1h)</div>
+                <div class="font-mono text-lg text-green-nerv">${formatNumber(outbox?.delivered_24h)}</div>
+                <div class="font-mono text-xs text-text-muted">Delivered (24h)</div>
               </div>
               <div>
                 <div class="font-mono text-lg text-red-nerv">${formatNumber(outbox?.dead_total)}</div>
