@@ -1,6 +1,8 @@
 import { createServer, type HttpServer } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import { onShutdown } from "@shetty4l/core/signals";
+import { existsSync } from "fs";
+import { join } from "path";
 import { handleApiRequest } from "./api";
 import { CalendarChannel } from "./channels/calendar/index";
 import { CortexClient } from "./channels/cortex-client";
@@ -8,7 +10,63 @@ import { ChannelRegistry } from "./channels/index";
 import { loadConfig } from "./config";
 import { VERSION } from "./version";
 
+// Dashboard static files location (relative to project root)
+const DASHBOARD_DIR = join(import.meta.dir, "..", "dashboard", "dist");
+
 const log = createLogger("wilson");
+
+// MIME types for static file serving
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
+/**
+ * Serve static files from the dashboard dist directory.
+ * Maps /dashboard/* paths to files in dashboard/dist/.
+ */
+function serveDashboardFile(pathname: string): Response | null {
+  // Remove /dashboard prefix
+  let filePath = pathname.replace(/^\/dashboard/, "");
+
+  // Default to index.html for directory paths
+  if (filePath === "" || filePath === "/") {
+    filePath = "/index.html";
+  }
+
+  // Resolve full path (strip leading slash for join)
+  const fullPath = join(DASHBOARD_DIR, filePath.slice(1));
+
+  // Security: ensure path is within DASHBOARD_DIR
+  if (!fullPath.startsWith(DASHBOARD_DIR)) {
+    return null;
+  }
+
+  // Check if file exists
+  if (!existsSync(fullPath)) {
+    return null;
+  }
+
+  // Determine MIME type
+  const ext = filePath.substring(filePath.lastIndexOf("."));
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
+
+  // Read and return file
+  const file = Bun.file(fullPath);
+  return new Response(file, {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "no-cache", // For development; could be longer for production
+    },
+  });
+}
 
 /**
  * Start the Wilson daemon server.
@@ -36,10 +94,22 @@ export async function cmdServe(): Promise<void> {
     version: VERSION,
     onRequest: async (req: Request) => {
       const url = new URL(req.url);
+
+      // GET / redirects to /dashboard/
+      if (url.pathname === "/") {
+        return Response.redirect(new URL("/dashboard/", url.origin), 302);
+      }
+
       // Handle /api/* routes
       if (url.pathname.startsWith("/api/")) {
         return handleApiRequest(req, url, config);
       }
+
+      // Serve dashboard static files for /dashboard/*
+      if (url.pathname.startsWith("/dashboard")) {
+        return serveDashboardFile(url.pathname);
+      }
+
       // Return null for other paths (404)
       return null;
     },
