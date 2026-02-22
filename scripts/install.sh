@@ -28,6 +28,17 @@ make_deploy_executable() {
   ok "Deploy scripts validated"
 }
 
+# --- Wilson-specific: build dashboard ---
+
+build_dashboard() {
+  local dashboard_dir="${INSTALL_BASE}/${RELEASE_TAG}/dashboard"
+  if [ -d "$dashboard_dir" ]; then
+    info "Building dashboard..."
+    (cd "$dashboard_dir" && bun install && bun run build)
+    ok "Dashboard built"
+  fi
+}
+
 # --- Wilson-specific: LaunchAgents ---
 
 # Install a single LaunchAgent plist.
@@ -130,6 +141,7 @@ main() {
   check_prereqs
   fetch_latest_release
   download_and_extract
+  build_dashboard
   make_deploy_executable
   update_symlink
   prune_versions

@@ -11,7 +11,7 @@ import { loadConfig } from "./config";
 import { VERSION } from "./version";
 
 // Dashboard static files location (relative to project root)
-const DASHBOARD_DIR = join(import.meta.dir, "..", "dashboard", "dist");
+const DASHBOARD_DIR = join(import.meta.dir, "..", "dashboard", "build");
 
 const log = createLogger("wilson");
 
