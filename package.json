@@ -13,7 +13,7 @@
     "format": "biome check --write src/ test/",
     "format:check": "biome check src/ test/",
     "test": "bun test",
-    "build:dashboard": "cd dashboard && bun run build",
+    "build:dashboard": "cd dashboard && bun install && bun run build",
     "validate": "bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build:dashboard",
     "version:bump": "bunx version-bump",
     "prepare": "husky"
