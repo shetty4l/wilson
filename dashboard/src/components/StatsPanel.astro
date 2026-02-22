@@ -1,0 +1,413 @@
+---
+interface Props {
+  serviceName: "engram" | "synapse" | "cortex";
+  stats: unknown;
+}
+
+const { serviceName, stats } = Astro.props;
+
+const displayName = serviceName.charAt(0).toUpperCase() + serviceName.slice(1);
+
+// Type guards for stats
+interface EngramStats {
+  memories: { total: number; with_embedding_pct: number };
+  operations: {
+    recall_1h: number;
+    remember_1h: number;
+    recall_hit_rate_1h: number;
+    recall_fallback_rate_1h: number;
+  };
+  latency: {
+    recall_p50_ms: number;
+    recall_p95_ms: number;
+    recall_p99_ms: number;
+  };
+}
+
+interface SynapseStats {
+  buffer: { capacity: number; size: number; oldest_entry_at: string | null };
+  requests: {
+    total_1h: number;
+    errors_1h: number;
+    by_provider: Record<string, number>;
+  };
+  latency: { p50_ms: number; p95_ms: number; p99_ms: number };
+  fallbacks: { count_1h: number };
+  providers: Array<{
+    name: string;
+    healthy: boolean;
+    consecutiveFailures: number;
+  }>;
+}
+
+interface CortexStats {
+  inbox: { pending: number; processing: number; done_1h: number; failed_1h: number };
+  outbox: { pending: number; delivered_1h: number; dead_total: number };
+  receptors: {
+    calendar_last_sync_at: string | null;
+    calendar_buffer_pending: number;
+    thalamus_last_run_at: string | null;
+  };
+  processing: { p50_ms: number; p95_ms: number; p99_ms: number };
+}
+
+function formatNumber(n: number | undefined | null): string {
+  if (n === undefined || n === null) return "—";
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return n.toFixed(1);
+}
+
+function formatPercent(n: number | undefined | null): string {
+  if (n === undefined || n === null) return "—";
+  return `${n.toFixed(1)}%`;
+}
+
+function formatMs(n: number | undefined | null): string {
+  if (n === undefined || n === null) return "—";
+  if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
+  return `${n.toFixed(0)}ms`;
+}
+
+function formatTime(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  try {
+    const date = new Date(ts);
+    return date.toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return ts;
+  }
+}
+---
+
+<div class="indicator-card bracket-corners" data-service={serviceName}>
+  <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+    <div class="status-dot status-dot-green flex-shrink-0"></div>
+    <h3 class="font-heading font-semibold text-text">{displayName}</h3>
+  </div>
+
+  {
+    !stats ? (
+      <div class="py-6 text-center">
+        <p class="font-mono text-sm text-text-muted">No data available</p>
+      </div>
+    ) : serviceName === "engram" ? (
+      <div class="space-y-4">
+        {/* Memories Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Memories
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatNumber((stats as EngramStats).memories?.total)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Total</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatPercent((stats as EngramStats).memories?.with_embedding_pct)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">With Embedding</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Operations Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Operations (1h)
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatNumber((stats as EngramStats).operations?.recall_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Recalls</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatNumber((stats as EngramStats).operations?.remember_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Remembers</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatPercent((stats as EngramStats).operations?.recall_hit_rate_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Hit Rate</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatPercent((stats as EngramStats).operations?.recall_fallback_rate_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Fallback Rate</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Latency Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Recall Latency
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-sm text-green-nerv">
+                {formatMs((stats as EngramStats).latency?.recall_p50_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p50</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-amber-nerv">
+                {formatMs((stats as EngramStats).latency?.recall_p95_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p95</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-orange-nerv">
+                {formatMs((stats as EngramStats).latency?.recall_p99_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p99</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : serviceName === "synapse" ? (
+      <div class="space-y-4">
+        {/* Buffer Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Buffer
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatNumber((stats as SynapseStats).buffer?.size)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Size</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatNumber((stats as SynapseStats).buffer?.capacity)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Capacity</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-text">
+                {formatTime((stats as SynapseStats).buffer?.oldest_entry_at)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Oldest</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Requests Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Requests (1h)
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-lg text-text">
+                {formatNumber((stats as SynapseStats).requests?.total_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Total</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-red-nerv">
+                {formatNumber((stats as SynapseStats).requests?.errors_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Errors</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-orange-nerv">
+                {formatNumber((stats as SynapseStats).fallbacks?.count_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Fallbacks</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Latency Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Latency
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-sm text-green-nerv">
+                {formatMs((stats as SynapseStats).latency?.p50_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p50</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-amber-nerv">
+                {formatMs((stats as SynapseStats).latency?.p95_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p95</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-orange-nerv">
+                {formatMs((stats as SynapseStats).latency?.p99_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p99</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Providers Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Providers
+          </div>
+          <div class="space-y-2">
+            {(stats as SynapseStats).providers?.length > 0 ? (
+              (stats as SynapseStats).providers.map((provider) => (
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div
+                      class:list={[
+                        "w-2 h-2 rounded-full",
+                        provider.healthy ? "bg-green-nerv" : "bg-red-nerv",
+                      ]}
+                    />
+                    <span class="font-mono text-sm text-text">{provider.name}</span>
+                  </div>
+                  {provider.consecutiveFailures > 0 && (
+                    <span class="font-mono text-xs text-red-nerv">
+                      {provider.consecutiveFailures} failures
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p class="font-mono text-sm text-text-muted">No providers</p>
+            )}
+          </div>
+        </div>
+      </div>
+    ) : serviceName === "cortex" ? (
+      <div class="space-y-4">
+        {/* Inbox Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Inbox
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatNumber((stats as CortexStats).inbox?.pending)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Pending</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-orange-nerv">
+                {formatNumber((stats as CortexStats).inbox?.processing)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Processing</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-green-nerv">
+                {formatNumber((stats as CortexStats).inbox?.done_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Done (1h)</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-red-nerv">
+                {formatNumber((stats as CortexStats).inbox?.failed_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Failed (1h)</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Outbox Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Outbox
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatNumber((stats as CortexStats).outbox?.pending)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Pending</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-green-nerv">
+                {formatNumber((stats as CortexStats).outbox?.delivered_1h)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Delivered (1h)</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-red-nerv">
+                {formatNumber((stats as CortexStats).outbox?.dead_total)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Dead</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Receptors Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Receptors
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <div class="font-mono text-sm text-text">
+                {formatTime((stats as CortexStats).receptors?.calendar_last_sync_at)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Calendar Sync</div>
+            </div>
+            <div>
+              <div class="font-mono text-lg text-amber-nerv">
+                {formatNumber((stats as CortexStats).receptors?.calendar_buffer_pending)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Buffer Pending</div>
+            </div>
+            <div class="col-span-2">
+              <div class="font-mono text-sm text-text">
+                {formatTime((stats as CortexStats).receptors?.thalamus_last_run_at)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">Thalamus Run</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Processing Latency Section */}
+        <div>
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">
+            Processing Latency
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <div class="font-mono text-sm text-green-nerv">
+                {formatMs((stats as CortexStats).processing?.p50_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p50</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-amber-nerv">
+                {formatMs((stats as CortexStats).processing?.p95_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p95</div>
+            </div>
+            <div>
+              <div class="font-mono text-sm text-orange-nerv">
+                {formatMs((stats as CortexStats).processing?.p99_ms)}
+              </div>
+              <div class="font-mono text-xs text-text-muted">p99</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : null
+  }
+</div>
