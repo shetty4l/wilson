@@ -16,7 +16,7 @@
     "build:dashboard": "cd dashboard && bun install && bun run build",
     "validate": "bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build:dashboard",
     "version:bump": "bunx version-bump",
-    "prepare": "husky"
+    "prepare": "[ -d .git ] && husky || true"
   },
   "dependencies": {
     "@shetty4l/core": "^0.1.30"
