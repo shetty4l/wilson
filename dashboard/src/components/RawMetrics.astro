@@ -1,0 +1,45 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = "Raw Metrics" } = Astro.props;
+---
+
+<div
+  id="raw-metrics-panel"
+  class="hidden bg-nerv-surface border border-nerv-border rounded-sm"
+>
+  <div
+    class="border-b border-nerv-border px-4 py-2 flex items-center justify-between"
+  >
+    <h3
+      id="metrics-title"
+      class="font-heading font-semibold text-sm text-amber-nerv"
+    >
+      {title}
+    </h3>
+    <button
+      id="close-metrics"
+      class="text-text-muted hover:text-text transition-colors"
+      aria-label="Close metrics panel"
+    >
+      <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M6 18L18 6M6 6l12 12"></path>
+      </svg>
+    </button>
+  </div>
+  <div id="metrics-content" class="p-4">
+    <pre class="font-mono text-xs text-text overflow-x-auto whitespace-pre-wrap"
+      ></pre>
+  </div>
+</div>

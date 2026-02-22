@@ -1,6 +1,7 @@
 import { createServer, type HttpServer } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import { onShutdown } from "@shetty4l/core/signals";
+import { handleApiRequest } from "./api";
 import { CalendarChannel } from "./channels/calendar/index";
 import { CortexClient } from "./channels/cortex-client";
 import { ChannelRegistry } from "./channels/index";
@@ -33,7 +34,15 @@ export async function cmdServe(): Promise<void> {
     port: config.port,
     host: config.host,
     version: VERSION,
-    onRequest: () => null,
+    onRequest: async (req: Request) => {
+      const url = new URL(req.url);
+      // Handle /api/* routes
+      if (url.pathname.startsWith("/api/")) {
+        return handleApiRequest(req, url, config);
+      }
+      // Return null for other paths (404)
+      return null;
+    },
   });
 
   log(`server started on ${config.host}:${server.port} (v${VERSION})`);
