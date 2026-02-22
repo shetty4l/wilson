@@ -1,5 +1,10 @@
 import { createLogsCommand } from "@shetty4l/core/cli";
-import { getLogSources, getService, UPDATER_LOG } from "./services";
+import {
+  getLogSources,
+  getService,
+  UPDATER_LOG,
+  WILSON_CONFIG,
+} from "./services";
 
 /**
  * Wilson logs command — takes a <source> argument (service name or "updater")
@@ -20,6 +25,8 @@ export async function cmdLogs(args: string[], json: boolean): Promise<number> {
 
   if (source === "updater") {
     logFile = UPDATER_LOG;
+  } else if (source === "wilson") {
+    logFile = WILSON_CONFIG.logFiles.daemon;
   } else {
     const svcResult = getService(source);
     if (!svcResult.ok) {

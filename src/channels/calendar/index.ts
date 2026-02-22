@@ -89,8 +89,9 @@ export class CalendarChannel implements Channel {
       const events = await readAppleCalendar(windowDays, this.spawnFn);
 
       // Sort for stable hashing
-      const sorted = [...events].sort((a, b) =>
-        a.startDate.localeCompare(b.startDate),
+      const sorted = [...events].sort(
+        (a, b) =>
+          a.startDate.localeCompare(b.startDate) || a.uid.localeCompare(b.uid),
       );
 
       // Diff detection

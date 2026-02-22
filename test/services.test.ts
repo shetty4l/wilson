@@ -61,12 +61,13 @@ describe("service registry", () => {
     expect(names.length).toBe(3);
   });
 
-  test("getLogSources includes services and updater", () => {
+  test("getLogSources includes services, updater, and wilson", () => {
     const sources = getLogSources();
     expect(sources).toContain("engram");
     expect(sources).toContain("synapse");
     expect(sources).toContain("cortex");
     expect(sources).toContain("updater");
+    expect(sources).toContain("wilson");
   });
 
   test("wilson config has correct paths", () => {
