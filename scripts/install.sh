@@ -154,7 +154,8 @@ print_status() {
   local tailscale_bin="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
   if [ -x "$tailscale_bin" ]; then
     local ts_hostname
-    ts_hostname=$("$tailscale_bin" status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//')
+    # Note: grep pattern allows optional space after colon to handle JSON formatting variations
+    ts_hostname=$("$tailscale_bin" status --json 2>/dev/null | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//' || true)
     if [ -n "$ts_hostname" ]; then
       echo "    Tailscale:  https://${ts_hostname}:${WILSON_HTTPS_PORT}/dashboard/"
     fi
