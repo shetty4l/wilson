@@ -6,14 +6,13 @@ import {
   getService,
   getServiceNames,
   SERVICES,
-  WILSON_CONFIG,
 } from "../src/services";
 
 const HOME = homedir();
 
 describe("service registry", () => {
   test("has expected number of services", () => {
-    expect(SERVICES.length).toBe(3);
+    expect(SERVICES.length).toBe(4);
   });
 
   test("each service has all required fields", () => {
@@ -58,21 +57,28 @@ describe("service registry", () => {
     expect(names).toContain("engram");
     expect(names).toContain("synapse");
     expect(names).toContain("cortex");
-    expect(names.length).toBe(3);
+    expect(names).toContain("wilson");
+    expect(names.length).toBe(4);
   });
 
-  test("getLogSources includes services, updater, and wilson", () => {
+  test("getLogSources includes services and updater", () => {
     const sources = getLogSources();
     expect(sources).toContain("engram");
     expect(sources).toContain("synapse");
     expect(sources).toContain("cortex");
-    expect(sources).toContain("updater");
     expect(sources).toContain("wilson");
+    expect(sources).toContain("updater");
+    expect(sources.length).toBe(5);
   });
 
-  test("wilson config has correct paths", () => {
-    expect(WILSON_CONFIG.repo).toBe("shetty4l/wilson");
-    expect(WILSON_CONFIG.installBase).toBe(join(HOME, "srv", "wilson"));
-    expect(WILSON_CONFIG.cliPath).toBe(join(HOME, ".local", "bin", "wilson"));
+  test("getService returns correct wilson config", () => {
+    const result = getService("wilson");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.value.port).toBe(7748);
+    expect(result.value.repo).toBe("shetty4l/wilson");
+    expect(result.value.installBase).toBe(join(HOME, "srv", "wilson"));
+    expect(result.value.cliPath).toBe(join(HOME, ".local", "bin", "wilson"));
+    expect(result.value.healthUrl).toBe("http://localhost:7748/health");
   });
 });

@@ -21,7 +21,7 @@ Usage:
   wilson-ctl version              Show version
 
 Services: ${getServiceNames().join(", ")}
-Log sources: ${getServiceNames().join(", ")}, updater, wilson
+Log sources: ${getServiceNames().join(", ")}, updater
 
 Options:
   --json                Machine-readable JSON output

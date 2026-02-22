@@ -1,8 +1,7 @@
 import { err, ok, type Result } from "@shetty4l/core/result";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { SERVICES, WILSON_CONFIG } from "./services";
-import { VERSION } from "./version";
+import { SERVICES } from "./services";
 
 interface HealthResponse {
   status?: string;
@@ -11,7 +10,7 @@ interface HealthResponse {
 
 interface ServiceStatus {
   name: string;
-  status: "running" | "stopped" | "unreachable" | "ok";
+  status: "running" | "stopped" | "unreachable";
   version: string;
   port: number | null;
   pid: number | null;
@@ -83,22 +82,6 @@ export async function cmdStatus(json: boolean): Promise<void> {
   const results: ServiceStatus[] = await Promise.all(
     SERVICES.map(checkService),
   );
-
-  // Add Wilson itself
-  let wilsonVersion = VERSION;
-  if (existsSync(WILSON_CONFIG.currentVersionFile)) {
-    wilsonVersion = readFileSync(
-      WILSON_CONFIG.currentVersionFile,
-      "utf-8",
-    ).trim();
-  }
-  results.push({
-    name: "wilson",
-    status: "ok",
-    version: wilsonVersion,
-    port: null,
-    pid: null,
-  });
 
   if (json) {
     console.log(JSON.stringify(results, null, 2));
