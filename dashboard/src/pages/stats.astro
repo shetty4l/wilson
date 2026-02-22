@@ -1,26 +1,658 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import StatsPanel from "../components/StatsPanel.astro";
+
+interface ServiceStats {
+  engram: unknown;
+  synapse: unknown;
+  cortex: unknown;
+  health: Record<string, unknown>;
+}
+
+// Get tab from URL query param (default to "overview")
+const url = new URL(Astro.request.url);
+const tab = url.searchParams.get("tab") || "overview";
+const validTabs = ["overview", "engram", "synapse", "cortex"];
+const currentTab = validTabs.includes(tab) ? tab : "overview";
+
+const tabs = [
+  { id: "overview", label: "Overview" },
+  { id: "engram", label: "Engram" },
+  { id: "synapse", label: "Synapse" },
+  { id: "cortex", label: "Cortex" },
+] as const;
+
+// Fetch initial stats data at build/SSR time
+let stats: ServiceStats | null = null;
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch("http://localhost:7748/api/stats");
+  if (res.ok) {
+    stats = await res.json();
+  } else {
+    fetchError = `Failed to fetch stats (${res.status})`;
+  }
+} catch (e) {
+  fetchError = "Unable to connect to Wilson API";
+}
 ---
 
 <Layout title="Stats | Wilson Dashboard" currentPage="stats">
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-4">
       <h2 class="font-heading font-semibold text-lg text-text">
         System Statistics
       </h2>
+      <div class="flex items-center gap-3">
+        <span
+          id="refresh-indicator"
+          class="font-mono text-xs text-text-muted hidden"
+        >
+          Refreshing...
+        </span>
+        <span id="last-update" class="font-mono text-xs text-text-muted">
+          —
+        </span>
+      </div>
     </div>
 
-    <div class="indicator-card bracket-corners">
-      <div class="flex items-center justify-center py-12">
-        <div class="text-center">
-          <p class="font-mono text-lg text-amber-nerv mb-2">
-            Stats page coming soon
-          </p>
-          <p class="font-mono text-xs text-text-muted">
-            Per-service metrics and analytics
-          </p>
-        </div>
+    <!-- Tab Navigation -->
+    <div class="border-b border-nerv-border overflow-x-auto">
+      <div class="flex gap-1 min-w-max" id="tabs-container">
+        {
+          tabs.map((t) => {
+            const isActive = currentTab === t.id;
+            return (
+              <a
+                href={`?tab=${t.id}`}
+                class:list={[
+                  "font-mono text-sm px-4 py-2.5 block transition-colors whitespace-nowrap tab-link",
+                  isActive
+                    ? "text-amber-nerv border-b-2 border-amber-nerv"
+                    : "text-text-muted hover:text-text border-b-2 border-transparent",
+                ]}
+                data-tab={t.id}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {t.label}
+              </a>
+            );
+          })
+        }
       </div>
+    </div>
+
+    <!-- Error State -->
+    {
+      fetchError && (
+        <div
+          id="error-container"
+          class="indicator-card bracket-corners border-red-nerv/50"
+        >
+          <div class="flex items-center gap-3 py-2">
+            <div class="status-dot status-dot-red" />
+            <div>
+              <p class="font-mono text-sm text-red-nerv">{fetchError}</p>
+              <p class="font-mono text-xs text-text-muted mt-1">
+                Auto-retrying every 60s...
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    <!-- Stats Content -->
+    <div id="stats-container">
+      {
+        stats ? (
+          currentTab === "overview" ? (
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div data-panel="engram">
+                <StatsPanel serviceName="engram" stats={stats.engram} />
+              </div>
+              <div data-panel="synapse">
+                <StatsPanel serviceName="synapse" stats={stats.synapse} />
+              </div>
+              <div data-panel="cortex">
+                <StatsPanel serviceName="cortex" stats={stats.cortex} />
+              </div>
+            </div>
+          ) : currentTab === "engram" ? (
+            <div class="max-w-xl" data-panel="engram">
+              <StatsPanel serviceName="engram" stats={stats.engram} />
+            </div>
+          ) : currentTab === "synapse" ? (
+            <div class="max-w-xl" data-panel="synapse">
+              <StatsPanel serviceName="synapse" stats={stats.synapse} />
+            </div>
+          ) : currentTab === "cortex" ? (
+            <div class="max-w-xl" data-panel="cortex">
+              <StatsPanel serviceName="cortex" stats={stats.cortex} />
+            </div>
+          ) : null
+        ) : !fetchError ? (
+          <div class="indicator-card bracket-corners">
+            <div class="flex items-center justify-center py-8">
+              <p class="font-mono text-sm text-text-muted">Loading stats...</p>
+            </div>
+          </div>
+        ) : null
+      }
     </div>
   </div>
 </Layout>
+
+<script>
+  interface ServiceStats {
+    engram: unknown;
+    synapse: unknown;
+    cortex: unknown;
+    health: Record<string, unknown>;
+  }
+
+  // Update last refresh time
+  function updateLastRefresh() {
+    const el = document.getElementById("last-update");
+    if (el) {
+      const now = new Date();
+      el.textContent = `Updated ${now.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })}`;
+    }
+  }
+
+  // Get current tab from URL
+  function getCurrentTab(): string {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab") || "overview";
+    const validTabs = ["overview", "engram", "synapse", "cortex"];
+    return validTabs.includes(tab) ? tab : "overview";
+  }
+
+  // Render stats for a single service
+  function renderServiceStats(
+    serviceName: string,
+    stats: unknown,
+  ): string {
+    if (!stats) {
+      return `
+        <div class="indicator-card bracket-corners" data-service="${serviceName}">
+          <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+            <div class="status-dot status-dot-red flex-shrink-0"></div>
+            <h3 class="font-heading font-semibold text-text">${serviceName.charAt(0).toUpperCase() + serviceName.slice(1)}</h3>
+          </div>
+          <div class="py-6 text-center">
+            <p class="font-mono text-sm text-text-muted">No data available</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const displayName =
+      serviceName.charAt(0).toUpperCase() + serviceName.slice(1);
+
+    const formatNumber = (n: number | undefined | null): string => {
+      if (n === undefined || n === null) return "—";
+      if (Number.isInteger(n)) return n.toLocaleString();
+      return n.toFixed(1);
+    };
+
+    const formatPercent = (n: number | undefined | null): string => {
+      if (n === undefined || n === null) return "—";
+      return `${n.toFixed(1)}%`;
+    };
+
+    const formatMs = (n: number | undefined | null): string => {
+      if (n === undefined || n === null) return "—";
+      if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
+      return `${n.toFixed(0)}ms`;
+    };
+
+    const formatTime = (ts: string | null | undefined): string => {
+      if (!ts) return "—";
+      try {
+        const date = new Date(ts);
+        return date.toLocaleTimeString("en-US", {
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      } catch {
+        return ts;
+      }
+    };
+
+    // Type guards
+    const s = stats as Record<string, unknown>;
+
+    let content = "";
+
+    if (serviceName === "engram") {
+      const memories = s.memories as
+        | { total: number; with_embedding_pct: number }
+        | undefined;
+      const operations = s.operations as
+        | {
+            recall_1h: number;
+            remember_1h: number;
+            recall_hit_rate_1h: number;
+            recall_fallback_rate_1h: number;
+          }
+        | undefined;
+      const latency = s.latency as
+        | { recall_p50_ms: number; recall_p95_ms: number; recall_p99_ms: number }
+        | undefined;
+
+      content = `
+        <div class="space-y-4">
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Memories</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(memories?.total)}</div>
+                <div class="font-mono text-xs text-text-muted">Total</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatPercent(memories?.with_embedding_pct)}</div>
+                <div class="font-mono text-xs text-text-muted">With Embedding</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Operations (1h)</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="font-mono text-lg text-text">${formatNumber(operations?.recall_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Recalls</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-text">${formatNumber(operations?.remember_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Remembers</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_hit_rate_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Hit Rate</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_fallback_rate_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Fallback Rate</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Recall Latency</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-sm text-green-nerv">${formatMs(latency?.recall_p50_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p50</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-amber-nerv">${formatMs(latency?.recall_p95_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p95</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-orange-nerv">${formatMs(latency?.recall_p99_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p99</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (serviceName === "synapse") {
+      const buffer = s.buffer as
+        | { capacity: number; size: number; oldest_entry_at: string | null }
+        | undefined;
+      const requests = s.requests as
+        | {
+            total_1h: number;
+            errors_1h: number;
+            by_provider: Record<string, number>;
+          }
+        | undefined;
+      const latency = s.latency as
+        | { p50_ms: number; p95_ms: number; p99_ms: number }
+        | undefined;
+      const fallbacks = s.fallbacks as { count_1h: number } | undefined;
+      const providers = s.providers as
+        | Array<{
+            name: string;
+            healthy: boolean;
+            consecutiveFailures: number;
+          }>
+        | undefined;
+
+      const providersList =
+        providers && providers.length > 0
+          ? providers
+              .map(
+                (p) => `
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full ${p.healthy ? "bg-green-nerv" : "bg-red-nerv"}"></div>
+                <span class="font-mono text-sm text-text">${p.name}</span>
+              </div>
+              ${p.consecutiveFailures > 0 ? `<span class="font-mono text-xs text-red-nerv">${p.consecutiveFailures} failures</span>` : ""}
+            </div>
+          `,
+              )
+              .join("")
+          : '<p class="font-mono text-sm text-text-muted">No providers</p>';
+
+      content = `
+        <div class="space-y-4">
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Buffer</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(buffer?.size)}</div>
+                <div class="font-mono text-xs text-text-muted">Size</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-text">${formatNumber(buffer?.capacity)}</div>
+                <div class="font-mono text-xs text-text-muted">Capacity</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-text">${formatTime(buffer?.oldest_entry_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Oldest</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Requests (1h)</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-lg text-text">${formatNumber(requests?.total_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Total</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-red-nerv">${formatNumber(requests?.errors_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Errors</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-orange-nerv">${formatNumber(fallbacks?.count_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Fallbacks</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Latency</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-sm text-green-nerv">${formatMs(latency?.p50_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p50</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-amber-nerv">${formatMs(latency?.p95_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p95</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-orange-nerv">${formatMs(latency?.p99_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p99</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Providers</div>
+            <div class="space-y-2">${providersList}</div>
+          </div>
+        </div>
+      `;
+    } else if (serviceName === "cortex") {
+      const inbox = s.inbox as
+        | {
+            pending: number;
+            processing: number;
+            done_1h: number;
+            failed_1h: number;
+          }
+        | undefined;
+      const outbox = s.outbox as
+        | { pending: number; delivered_1h: number; dead_total: number }
+        | undefined;
+      const receptors = s.receptors as
+        | {
+            calendar_last_sync_at: string | null;
+            calendar_buffer_pending: number;
+            thalamus_last_run_at: string | null;
+          }
+        | undefined;
+      const processing = s.processing as
+        | { p50_ms: number; p95_ms: number; p99_ms: number }
+        | undefined;
+
+      content = `
+        <div class="space-y-4">
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Inbox</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(inbox?.pending)}</div>
+                <div class="font-mono text-xs text-text-muted">Pending</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-orange-nerv">${formatNumber(inbox?.processing)}</div>
+                <div class="font-mono text-xs text-text-muted">Processing</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-green-nerv">${formatNumber(inbox?.done_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Done (1h)</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-red-nerv">${formatNumber(inbox?.failed_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Failed (1h)</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Outbox</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(outbox?.pending)}</div>
+                <div class="font-mono text-xs text-text-muted">Pending</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-green-nerv">${formatNumber(outbox?.delivered_1h)}</div>
+                <div class="font-mono text-xs text-text-muted">Delivered (1h)</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-red-nerv">${formatNumber(outbox?.dead_total)}</div>
+                <div class="font-mono text-xs text-text-muted">Dead</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Receptors</div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="font-mono text-sm text-text">${formatTime(receptors?.calendar_last_sync_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Calendar Sync</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(receptors?.calendar_buffer_pending)}</div>
+                <div class="font-mono text-xs text-text-muted">Buffer Pending</div>
+              </div>
+              <div class="col-span-2">
+                <div class="font-mono text-sm text-text">${formatTime(receptors?.thalamus_last_run_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Thalamus Run</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Processing Latency</div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <div class="font-mono text-sm text-green-nerv">${formatMs(processing?.p50_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p50</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-amber-nerv">${formatMs(processing?.p95_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p95</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-orange-nerv">${formatMs(processing?.p99_ms)}</div>
+                <div class="font-mono text-xs text-text-muted">p99</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="indicator-card bracket-corners" data-service="${serviceName}">
+        <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+          <div class="status-dot status-dot-green flex-shrink-0"></div>
+          <h3 class="font-heading font-semibold text-text">${displayName}</h3>
+        </div>
+        ${content}
+      </div>
+    `;
+  }
+
+  // Render stats based on current tab
+  function renderStats(stats: ServiceStats | null, tab: string) {
+    const container = document.getElementById("stats-container");
+    if (!container) return;
+
+    if (!stats) {
+      container.innerHTML = `
+        <div class="indicator-card bracket-corners">
+          <div class="flex items-center justify-center py-8">
+            <p class="font-mono text-sm text-text-muted">Loading stats...</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if (tab === "overview") {
+      container.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div data-panel="engram">${renderServiceStats("engram", stats.engram)}</div>
+          <div data-panel="synapse">${renderServiceStats("synapse", stats.synapse)}</div>
+          <div data-panel="cortex">${renderServiceStats("cortex", stats.cortex)}</div>
+        </div>
+      `;
+    } else if (tab === "engram") {
+      container.innerHTML = `
+        <div class="max-w-xl" data-panel="engram">${renderServiceStats("engram", stats.engram)}</div>
+      `;
+    } else if (tab === "synapse") {
+      container.innerHTML = `
+        <div class="max-w-xl" data-panel="synapse">${renderServiceStats("synapse", stats.synapse)}</div>
+      `;
+    } else if (tab === "cortex") {
+      container.innerHTML = `
+        <div class="max-w-xl" data-panel="cortex">${renderServiceStats("cortex", stats.cortex)}</div>
+      `;
+    }
+  }
+
+  // Fetch stats data
+  async function fetchStats(): Promise<ServiceStats | null> {
+    const indicator = document.getElementById("refresh-indicator");
+    if (indicator) indicator.classList.remove("hidden");
+
+    try {
+      const res = await fetch("/api/stats");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      updateLastRefresh();
+
+      // Hide error container if it exists
+      const errorContainer = document.getElementById("error-container");
+      if (errorContainer) errorContainer.classList.add("hidden");
+
+      return data;
+    } catch (e) {
+      console.error("Failed to fetch stats:", e);
+      return null;
+    } finally {
+      if (indicator) indicator.classList.add("hidden");
+    }
+  }
+
+  // Refresh stats data
+  async function refreshStats() {
+    const data = await fetchStats();
+    if (data) {
+      renderStats(data, getCurrentTab());
+    }
+  }
+
+  // Update tab styling
+  function updateTabStyling(activeTab: string) {
+    const tabLinks = document.querySelectorAll(".tab-link");
+    tabLinks.forEach((link) => {
+      const tab = (link as HTMLElement).dataset.tab;
+      if (tab === activeTab) {
+        link.classList.remove(
+          "text-text-muted",
+          "hover:text-text",
+          "border-transparent",
+        );
+        link.classList.add("text-amber-nerv", "border-amber-nerv");
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.classList.add(
+          "text-text-muted",
+          "hover:text-text",
+          "border-transparent",
+        );
+        link.classList.remove("text-amber-nerv", "border-amber-nerv");
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  // Handle tab navigation with JavaScript for better UX
+  function setupTabNavigation() {
+    const tabLinks = document.querySelectorAll(".tab-link");
+    tabLinks.forEach((link) => {
+      link.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const tab = (link as HTMLElement).dataset.tab;
+        if (!tab) return;
+
+        // Update URL without full page reload
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", tab);
+        window.history.pushState({}, "", url.toString());
+
+        // Update styling
+        updateTabStyling(tab);
+
+        // Fetch and render new data
+        const data = await fetchStats();
+        if (data) {
+          renderStats(data, tab);
+        }
+      });
+    });
+
+    // Handle browser back/forward
+    window.addEventListener("popstate", async () => {
+      const tab = getCurrentTab();
+      updateTabStyling(tab);
+      const data = await fetchStats();
+      if (data) {
+        renderStats(data, tab);
+      }
+    });
+  }
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", () => {
+    updateLastRefresh();
+    setupTabNavigation();
+
+    // Auto-refresh every 60s
+    setInterval(refreshStats, 60000);
+  });
+</script>
