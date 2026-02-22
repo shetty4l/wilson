@@ -16,4 +16,4 @@ jobs:
     with:
       service-name: wilson
       attach-install-sh: true
-      extra-tarball-paths: "deploy/"
+      extra-tarball-paths: "deploy/ dashboard/"
