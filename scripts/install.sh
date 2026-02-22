@@ -30,33 +30,47 @@ make_deploy_executable() {
   ok "Deploy scripts marked executable"
 }
 
-# --- Wilson-specific: LaunchAgent ---
+# --- Wilson-specific: LaunchAgents ---
+
+# Install a single LaunchAgent plist.
+# Args: $1 = label (e.g. "com.suyash.wilson"), $2 = description for log
+install_single_agent() {
+  local label="$1"
+  local description="$2"
+  local plist_template="${INSTALL_BASE}/latest/deploy/plists/${label}.plist"
+  local plist_dest="${LAUNCH_AGENTS_DIR}/${label}.plist"
+
+  if [ ! -f "$plist_template" ]; then
+    warn "Plist not found: ${plist_template}, skipping ${description}"
+    return 0
+  fi
+
+  sed "s|\${HOME}|${HOME}|g" "$plist_template" > "$plist_dest"
+  ok "LaunchAgent installed: ${plist_dest}"
+
+  if [ "${SKIP_LAUNCHAGENT_RELOAD:-0}" = "1" ]; then
+    warn "Skipping LaunchAgent reload for ${description} (managed by updater)"
+    return 0
+  fi
+
+  local uid
+  uid=$(id -u)
+  launchctl bootout "gui/${uid}/${label}" 2>/dev/null || true
+  launchctl bootstrap "gui/${uid}" "$plist_dest" 2>/dev/null || {
+    warn "Could not load ${description}. Load it manually:"
+    warn "  launchctl bootstrap gui/${uid} ${plist_dest}"
+  }
+  ok "${description} loaded"
+}
 
 install_launch_agent() {
   mkdir -p "$LAUNCH_AGENTS_DIR"
 
-  local plist_template="${INSTALL_BASE}/latest/deploy/plists/com.suyash.wilson-updater.plist"
-  local plist_dest="${LAUNCH_AGENTS_DIR}/com.suyash.wilson-updater.plist"
+  # Updater agent: timer-based, runs wilson-update.sh every 4 minutes
+  install_single_agent "com.suyash.wilson-updater" "Updater LaunchAgent (every 4min)"
 
-  if [ -f "$plist_template" ]; then
-    sed "s|\${HOME}|${HOME}|g" "$plist_template" > "$plist_dest"
-    ok "LaunchAgent installed: ${plist_dest}"
-
-    if [ "${SKIP_LAUNCHAGENT_RELOAD:-0}" = "1" ]; then
-      warn "Skipping LaunchAgent reload (managed by updater)"
-    else
-      local uid
-      uid=$(id -u)
-      launchctl bootout "gui/${uid}/com.suyash.wilson-updater" 2>/dev/null || true
-      launchctl bootstrap "gui/${uid}" "$plist_dest" 2>/dev/null || {
-        warn "Could not load LaunchAgent. Load it manually:"
-        warn "  launchctl bootstrap gui/${uid} ${plist_dest}"
-      }
-      ok "LaunchAgent loaded (updates every 4min)"
-    fi
-  else
-    warn "LaunchAgent plist not found in release, skipping"
-  fi
+  # Daemon agent: KeepAlive, runs wilson serve
+  install_single_agent "com.suyash.wilson" "Daemon LaunchAgent (KeepAlive)"
 }
 
 # --- Wilson-specific: status ---
@@ -70,6 +84,7 @@ print_status() {
   echo "  Version:      ${RELEASE_TAG}"
   echo "  Install:      ${INSTALL_BASE}/latest"
   echo "  CLI:          ${BIN_DIR}/wilson"
+  echo "  Daemon log:   ~/.config/wilson/wilson.log"
   echo "  Update log:   ~/Library/Logs/wilson-updater.log"
   echo ""
   echo "  Check service status:"
