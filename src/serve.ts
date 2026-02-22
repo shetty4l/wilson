@@ -96,6 +96,7 @@ export async function cmdServe(): Promise<void> {
     port: config.port,
     host: config.host,
     version: VERSION,
+    idleTimeout: 120, // 2 minutes - needed for SSE long-lived connections
     onRequest: async (req: Request) => {
       const url = new URL(req.url);
 
