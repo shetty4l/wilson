@@ -64,6 +64,10 @@ export function handleLogsStream(service: string): Response {
   let lastSize = 0;
   let lastContent = "";
 
+  // Store intervals in closure for cleanup (not on controller)
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
       // Send initial connection event
@@ -100,7 +104,7 @@ export function handleLogsStream(service: string): Response {
       }
 
       // Watch file for changes
-      const pollInterval = setInterval(() => {
+      pollInterval = setInterval(() => {
         try {
           if (!existsSync(logPath)) {
             // File was deleted or doesn't exist yet
@@ -155,35 +159,25 @@ export function handleLogsStream(service: string): Response {
         }
       }, 1000); // Poll every second
 
-      // Heartbeat to keep connection alive
-      const heartbeatInterval = setInterval(() => {
+      // Heartbeat to keep connection alive (5s to stay well under idle timeouts)
+      heartbeatInterval = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`: heartbeat\n\n`));
         } catch {
           // Stream might be closed
         }
-      }, 15000); // Heartbeat every 15 seconds
-
-      // Store intervals for cleanup
-      (
-        controller as unknown as { _pollInterval: NodeJS.Timeout }
-      )._pollInterval = pollInterval;
-      (
-        controller as unknown as { _heartbeatInterval: NodeJS.Timeout }
-      )._heartbeatInterval = heartbeatInterval;
+      }, 5000); // Heartbeat every 5 seconds
     },
 
-    cancel(controller) {
-      // Cleanup on client disconnect
-      const ctrl = controller as unknown as {
-        _pollInterval?: NodeJS.Timeout;
-        _heartbeatInterval?: NodeJS.Timeout;
-      };
-      if (ctrl._pollInterval) {
-        clearInterval(ctrl._pollInterval);
+    cancel() {
+      // Cleanup on client disconnect - use closure variables
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
       }
-      if (ctrl._heartbeatInterval) {
-        clearInterval(ctrl._heartbeatInterval);
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
       }
     },
   });
