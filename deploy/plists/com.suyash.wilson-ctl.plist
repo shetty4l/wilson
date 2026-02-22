@@ -8,33 +8,38 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.suyash.wilson</string>
+  <string>com.suyash.wilson-ctl</string>
 
   <key>ProgramArguments</key>
   <array>
     <string>${HOME}/.bun/bin/bun</string>
     <string>run</string>
-    <string>${HOME}/srv/wilson/latest/src/cli.ts</string>
-    <string>serve</string>
+    <string>${HOME}/srv/wilson/latest/src/ctl-cli.ts</string>
+    <string>supervise</string>
   </array>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>${HOME}/.local/bin:${HOME}/.bun/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>${HOME}</string>
   </dict>
 
   <key>KeepAlive</key>
   <true/>
 
-  <!-- Allow child processes to survive if Wilson restarts.
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Allow child processes to survive if the supervisor restarts.
        Without this, launchd sends SIGTERM to the entire process group. -->
   <key>AbandonProcessGroup</key>
   <true/>
 
   <key>StandardOutPath</key>
-  <string>${HOME}/.config/wilson/wilson.log</string>
+  <string>${HOME}/.config/wilson/wilson-ctl.log</string>
   <key>StandardErrorPath</key>
-  <string>${HOME}/.config/wilson/wilson.log</string>
+  <string>${HOME}/.config/wilson/wilson-ctl.log</string>
 </dict>
 </plist>

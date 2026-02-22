@@ -6,6 +6,7 @@ import { cmdLogs } from "./logs";
 import { cmdRestart } from "./restart";
 import { getServiceNames } from "./services";
 import { cmdStatus } from "./status";
+import { cmdSupervise } from "./supervise";
 import { cmdUpdate } from "./update";
 import { VERSION } from "./version";
 
@@ -18,10 +19,11 @@ Usage:
   wilson-ctl logs <source> [n]    Show last n log lines (default: 20)
   wilson-ctl restart <service>    Restart a managed service via its CLI
   wilson-ctl update [service]     Run update check (all or specific service)
+  wilson-ctl supervise            Run supervisor (long-lived, manages all services)
   wilson-ctl version              Show version
 
 Services: ${getServiceNames().join(", ")}
-Log sources: ${getServiceNames().join(", ")}, updater
+Log sources: ${getServiceNames().join(", ")}, supervisor
 
 Options:
   --json                Machine-readable JSON output
@@ -43,6 +45,7 @@ if (isDirectRun) {
       logs: cmdLogs,
       restart: cmdRestart,
       update: cmdUpdate,
+      supervise: cmdSupervise,
     },
   });
 }

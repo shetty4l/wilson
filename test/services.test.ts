@@ -61,13 +61,13 @@ describe("service registry", () => {
     expect(names.length).toBe(4);
   });
 
-  test("getLogSources includes services and updater", () => {
+  test("getLogSources includes services and supervisor", () => {
     const sources = getLogSources();
     expect(sources).toContain("engram");
     expect(sources).toContain("synapse");
     expect(sources).toContain("cortex");
     expect(sources).toContain("wilson");
-    expect(sources).toContain("updater");
+    expect(sources).toContain("supervisor");
     expect(sources.length).toBe(5);
   });
 

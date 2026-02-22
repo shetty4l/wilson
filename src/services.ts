@@ -92,8 +92,8 @@ export function getServiceNames(): string[] {
 
 /**
  * All valid log source names for `wilson logs <source>`.
- * Includes each service name + "updater" for the wilson update log.
+ * Includes each service name + "supervisor" for the wilson-ctl supervisor log.
  */
 export function getLogSources(): string[] {
-  return [...getServiceNames(), "updater"];
+  return [...getServiceNames(), "supervisor"];
 }

@@ -1,9 +1,9 @@
 import { createLogsCommand } from "@shetty4l/core/cli";
-import { homedir } from "os";
+import { getConfigDir } from "@shetty4l/core/config";
 import { join } from "path";
 import { getLogSources, getService } from "./services";
 
-const UPDATER_LOG = join(homedir(), "Library", "Logs", "wilson-updater.log");
+const SUPERVISOR_LOG = join(getConfigDir("wilson"), "wilson-ctl.log");
 
 /**
  * Wilson logs command — takes a <source> argument (service name or "updater")
@@ -22,8 +22,8 @@ export async function cmdLogs(args: string[], json: boolean): Promise<number> {
   const remaining = args.slice(1);
   let logFile: string;
 
-  if (source === "updater") {
-    logFile = UPDATER_LOG;
+  if (source === "supervisor") {
+    logFile = SUPERVISOR_LOG;
   } else {
     const svcResult = getService(source);
     if (!svcResult.ok) {
@@ -42,7 +42,7 @@ export async function cmdLogs(args: string[], json: boolean): Promise<number> {
 
   const handler = createLogsCommand({
     logFile,
-    emptyMessage: `No ${source === "updater" ? "updater" : source} logs found.`,
+    emptyMessage: `No ${source === "supervisor" ? "supervisor" : source} logs found.`,
   });
 
   const result = await handler(remaining, json);
