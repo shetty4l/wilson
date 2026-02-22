@@ -1,0 +1,357 @@
+---
+interface Props {
+  service: "engram" | "synapse" | "cortex" | "wilson";
+}
+
+const { service } = Astro.props;
+---
+
+<div class="log-viewer-container" data-service={service}>
+  <!-- Connection Status -->
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2">
+      <div id="connection-dot" class="w-2 h-2 rounded-full bg-text-muted"></div>
+      <span id="connection-status" class="font-mono text-xs text-text-muted">
+        Connecting...
+      </span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        id="clear-btn"
+        class="font-mono text-xs text-text-muted hover:text-amber-nerv transition-colors"
+        title="Clear visible logs"
+      >
+        Clear
+      </button>
+      <button
+        id="scroll-btn"
+        class="font-mono text-xs text-amber-nerv hover:text-orange-nerv transition-colors"
+        title="Scroll to bottom"
+      >
+        ↓ Latest
+      </button>
+    </div>
+  </div>
+
+  <!-- Log Output -->
+  <div
+    id="log-output"
+    class="log-output-container font-mono text-sm overflow-y-auto bg-[#050508] border border-nerv-border rounded"
+    style="height: 500px;"
+  >
+    <div id="log-content" class="p-3 space-y-px">
+      <!-- Log lines will be inserted here -->
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="flex items-center justify-between mt-2 text-xs font-mono text-text-muted">
+    <span id="line-count">0 lines</span>
+    <span id="last-event">—</span>
+  </div>
+</div>
+
+<style>
+  .log-output-container {
+    /* Scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-nerv-border) transparent;
+  }
+  
+  .log-output-container::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .log-output-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .log-output-container::-webkit-scrollbar-thumb {
+    background-color: var(--color-nerv-border);
+    border-radius: 4px;
+  }
+  
+  .log-output-container::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-nerv-border-glow);
+  }
+  
+  .log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.4;
+    padding: 1px 0;
+  }
+  
+  /* Color coding based on log level patterns */
+  .log-line--error {
+    color: var(--color-red-nerv);
+  }
+  
+  .log-line--warn {
+    color: var(--color-orange-nerv);
+  }
+  
+  .log-line--info {
+    color: var(--color-green-nerv);
+  }
+  
+  .log-line--debug {
+    color: var(--color-text-muted);
+  }
+  
+  .log-line--default {
+    color: var(--color-text);
+  }
+</style>
+
+<script>
+  const MAX_LINES = 500;
+  const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000];
+  
+  interface LogViewerState {
+    eventSource: EventSource | null;
+    reconnectAttempts: number;
+    autoScroll: boolean;
+    lineCount: number;
+    service: string;
+  }
+  
+  function initLogViewer() {
+    const container = document.querySelector('.log-viewer-container');
+    if (!container) return;
+    
+    const service = container.getAttribute('data-service');
+    if (!service) return;
+    
+    const state: LogViewerState = {
+      eventSource: null,
+      reconnectAttempts: 0,
+      autoScroll: true,
+      lineCount: 0,
+      service,
+    };
+    
+    const elements = {
+      connectionDot: document.getElementById('connection-dot'),
+      connectionStatus: document.getElementById('connection-status'),
+      logOutput: document.getElementById('log-output'),
+      logContent: document.getElementById('log-content'),
+      lineCount: document.getElementById('line-count'),
+      lastEvent: document.getElementById('last-event'),
+      clearBtn: document.getElementById('clear-btn'),
+      scrollBtn: document.getElementById('scroll-btn'),
+    };
+    
+    function updateConnectionStatus(status: 'connected' | 'connecting' | 'disconnected' | 'error') {
+      if (!elements.connectionDot || !elements.connectionStatus) return;
+      
+      const dotClasses: Record<string, string> = {
+        connected: 'bg-green-nerv',
+        connecting: 'bg-amber-nerv animate-pulse',
+        disconnected: 'bg-text-muted',
+        error: 'bg-red-nerv',
+      };
+      
+      const statusText: Record<string, string> = {
+        connected: 'Connected',
+        connecting: 'Connecting...',
+        disconnected: 'Disconnected',
+        error: 'Connection error',
+      };
+      
+      elements.connectionDot.className = `w-2 h-2 rounded-full ${dotClasses[status] || 'bg-text-muted'}`;
+      elements.connectionStatus.textContent = statusText[status] || status;
+    }
+    
+    function getLogLineClass(line: string): string {
+      const lowerLine = line.toLowerCase();
+      if (lowerLine.includes('error') || lowerLine.includes('fatal') || lowerLine.includes('exception')) {
+        return 'log-line--error';
+      }
+      if (lowerLine.includes('warn')) {
+        return 'log-line--warn';
+      }
+      if (lowerLine.includes('info')) {
+        return 'log-line--info';
+      }
+      if (lowerLine.includes('debug') || lowerLine.includes('trace')) {
+        return 'log-line--debug';
+      }
+      return 'log-line--default';
+    }
+    
+    function addLogLine(line: string) {
+      if (!elements.logContent || !elements.logOutput) return;
+      
+      const lineEl = document.createElement('div');
+      lineEl.className = `log-line ${getLogLineClass(line)}`;
+      lineEl.textContent = line;
+      
+      elements.logContent.appendChild(lineEl);
+      state.lineCount++;
+      
+      // Trim old lines if exceeding max
+      while (elements.logContent.children.length > MAX_LINES) {
+        elements.logContent.removeChild(elements.logContent.firstChild!);
+        state.lineCount--;
+      }
+      
+      updateLineCount();
+      
+      // Auto-scroll if enabled
+      if (state.autoScroll) {
+        elements.logOutput.scrollTop = elements.logOutput.scrollHeight;
+      }
+    }
+    
+    function addInfoLine(message: string) {
+      if (!elements.logContent || !elements.logOutput) return;
+      
+      const lineEl = document.createElement('div');
+      lineEl.className = 'log-line text-amber-nerv italic';
+      lineEl.textContent = `[${message}]`;
+      
+      elements.logContent.appendChild(lineEl);
+      
+      if (state.autoScroll) {
+        elements.logOutput.scrollTop = elements.logOutput.scrollHeight;
+      }
+    }
+    
+    function updateLineCount() {
+      if (elements.lineCount) {
+        elements.lineCount.textContent = `${state.lineCount} lines`;
+      }
+    }
+    
+    function updateLastEvent() {
+      if (elements.lastEvent) {
+        const now = new Date();
+        elements.lastEvent.textContent = now.toLocaleTimeString('en-US', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+      }
+    }
+    
+    function clearLogs() {
+      if (elements.logContent) {
+        elements.logContent.innerHTML = '';
+        state.lineCount = 0;
+        updateLineCount();
+      }
+    }
+    
+    function scrollToBottom() {
+      if (elements.logOutput) {
+        elements.logOutput.scrollTop = elements.logOutput.scrollHeight;
+        state.autoScroll = true;
+      }
+    }
+    
+    function connect() {
+      if (state.eventSource) {
+        state.eventSource.close();
+      }
+      
+      updateConnectionStatus('connecting');
+      
+      const url = `/api/logs/stream?service=${encodeURIComponent(state.service)}`;
+      state.eventSource = new EventSource(url);
+      
+      state.eventSource.onopen = () => {
+        updateConnectionStatus('connected');
+        state.reconnectAttempts = 0;
+        updateLastEvent();
+      };
+      
+      state.eventSource.onmessage = (event) => {
+        addLogLine(event.data);
+        updateLastEvent();
+      };
+      
+      state.eventSource.addEventListener('connected', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          addInfoLine(`Connected to ${data.service} logs`);
+        } catch {
+          // Ignore parse errors
+        }
+      });
+      
+      state.eventSource.addEventListener('info', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          addInfoLine(data.message);
+        } catch {
+          // Ignore parse errors
+        }
+      });
+      
+      state.eventSource.onerror = () => {
+        updateConnectionStatus('error');
+        
+        if (state.eventSource) {
+          state.eventSource.close();
+          state.eventSource = null;
+        }
+        
+        // Schedule reconnect with backoff
+        const delay = RECONNECT_DELAYS[Math.min(state.reconnectAttempts, RECONNECT_DELAYS.length - 1)];
+        state.reconnectAttempts++;
+        
+        addInfoLine(`Connection lost. Reconnecting in ${delay / 1000}s...`);
+        
+        setTimeout(() => {
+          if (!state.eventSource) {
+            connect();
+          }
+        }, delay);
+      };
+    }
+    
+    // Detect manual scroll to disable auto-scroll
+    if (elements.logOutput) {
+      elements.logOutput.addEventListener('scroll', () => {
+        const el = elements.logOutput!;
+        const isAtBottom = Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) < 50;
+        state.autoScroll = isAtBottom;
+      });
+    }
+    
+    // Button handlers
+    if (elements.clearBtn) {
+      elements.clearBtn.addEventListener('click', clearLogs);
+    }
+    
+    if (elements.scrollBtn) {
+      elements.scrollBtn.addEventListener('click', scrollToBottom);
+    }
+    
+    // Start connection
+    connect();
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (state.eventSource) {
+        state.eventSource.close();
+      }
+    });
+    
+    // Expose reconnect for service switching
+    (window as unknown as { reconnectLogViewer: (newService: string) => void }).reconnectLogViewer = (newService: string) => {
+      state.service = newService;
+      clearLogs();
+      connect();
+    };
+  }
+  
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLogViewer);
+  } else {
+    initLogViewer();
+  }
+</script>

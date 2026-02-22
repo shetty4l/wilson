@@ -1,26 +1,125 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import LogViewer from "../components/LogViewer.astro";
+
+// Get service from URL query param (default to "wilson")
+const url = new URL(Astro.request.url);
+const serviceParam = url.searchParams.get("service") || "wilson";
+const validServices = ["engram", "synapse", "cortex", "wilson"] as const;
+type ValidService = (typeof validServices)[number];
+
+const currentService: ValidService = validServices.includes(serviceParam as ValidService)
+  ? (serviceParam as ValidService)
+  : "wilson";
+
+const services = [
+  { id: "engram", label: "Engram" },
+  { id: "synapse", label: "Synapse" },
+  { id: "cortex", label: "Cortex" },
+  { id: "wilson", label: "Wilson" },
+] as const;
 ---
 
 <Layout title="Logs | Wilson Dashboard" currentPage="logs">
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-4">
       <h2 class="font-heading font-semibold text-lg text-text">
         Service Logs
       </h2>
+
+      <!-- Service Selector -->
+      <div class="flex items-center gap-3">
+        <label for="service-selector" class="font-mono text-xs text-text-muted">
+          Service:
+        </label>
+        <select
+          id="service-selector"
+          class="bg-nerv-surface border border-nerv-border rounded px-3 py-1.5 font-mono text-sm text-amber-nerv cursor-pointer hover:border-nerv-border-glow transition-colors focus:outline-none focus:border-amber-nerv"
+        >
+          {services.map((svc) => (
+            <option
+              value={svc.id}
+              selected={currentService === svc.id}
+              class="bg-nerv-surface"
+            >
+              {svc.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
 
+    <!-- Log Viewer -->
     <div class="indicator-card bracket-corners">
-      <div class="flex items-center justify-center py-12">
-        <div class="text-center">
-          <p class="font-mono text-lg text-amber-nerv mb-2">
-            Logs page coming soon
-          </p>
-          <p class="font-mono text-xs text-text-muted">
-            Real-time log streaming and monitoring
-          </p>
-        </div>
-      </div>
+      <LogViewer service={currentService} />
+    </div>
+
+    <!-- Help Text -->
+    <div class="text-center">
+      <p class="font-mono text-xs text-text-muted">
+        Logs stream from ~/.config/{currentService}/{currentService}.log
+      </p>
     </div>
   </div>
 </Layout>
+
+<script>
+  function initServiceSelector() {
+    const selector = document.getElementById('service-selector') as HTMLSelectElement | null;
+    if (!selector) return;
+
+    selector.addEventListener('change', () => {
+      const newService = selector.value;
+      
+      // Update URL without full page reload
+      const url = new URL(window.location.href);
+      url.searchParams.set('service', newService);
+      window.history.pushState({}, '', url.toString());
+      
+      // Update the LogViewer to use the new service
+      const reconnect = (window as unknown as { reconnectLogViewer?: (service: string) => void }).reconnectLogViewer;
+      if (reconnect) {
+        reconnect(newService);
+      } else {
+        // Fallback: reload the page if reconnect isn't available
+        window.location.href = url.toString();
+      }
+      
+      // Update help text
+      const helpText = document.querySelector('.text-center p');
+      if (helpText) {
+        helpText.textContent = `Logs stream from ~/.config/${newService}/${newService}.log`;
+      }
+    });
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', () => {
+      const params = new URLSearchParams(window.location.search);
+      const service = params.get('service') || 'wilson';
+      const validServices = ['engram', 'synapse', 'cortex', 'wilson'];
+      const currentService = validServices.includes(service) ? service : 'wilson';
+      
+      // Update selector
+      selector.value = currentService;
+      
+      // Update LogViewer
+      const reconnect = (window as unknown as { reconnectLogViewer?: (service: string) => void }).reconnectLogViewer;
+      if (reconnect) {
+        reconnect(currentService);
+      }
+      
+      // Update help text
+      const helpText = document.querySelector('.text-center p');
+      if (helpText) {
+        helpText.textContent = `Logs stream from ~/.config/${currentService}/${currentService}.log`;
+      }
+    });
+  }
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initServiceSelector);
+  } else {
+    initServiceSelector();
+  }
+</script>
