@@ -1,7 +1,7 @@
 import { createServer, type HttpServer } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import { onShutdown } from "@shetty4l/core/signals";
-import { existsSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { handleApiRequest } from "./api";
 import { CalendarChannel } from "./channels/calendar/index";
@@ -34,28 +34,32 @@ const MIME_TYPES: Record<string, string> = {
  */
 function serveDashboardFile(pathname: string): Response | null {
   // Remove /dashboard prefix
-  let filePath = pathname.replace(/^\/dashboard/, "");
+  const filePath = pathname.replace(/^\/dashboard/, "") || "/";
 
-  // Default to index.html for directory paths
-  if (filePath === "" || filePath === "/") {
-    filePath = "/index.html";
-  }
-
-  // Resolve full path (strip leading slash for join)
-  const fullPath = join(DASHBOARD_DIR, filePath.slice(1));
+  // Resolve full path (strip leading slash for join, default to "." for root)
+  let fullPath = join(DASHBOARD_DIR, filePath.slice(1) || ".");
 
   // Security: ensure path is within DASHBOARD_DIR
   if (!fullPath.startsWith(DASHBOARD_DIR)) {
     return null;
   }
 
-  // Check if file exists
+  // Check if path exists
   if (!existsSync(fullPath)) {
     return null;
   }
 
-  // Determine MIME type
-  const ext = filePath.substring(filePath.lastIndexOf("."));
+  // If path is a directory, serve index.html from it
+  const stat = statSync(fullPath);
+  if (stat.isDirectory()) {
+    fullPath = join(fullPath, "index.html");
+    if (!existsSync(fullPath)) {
+      return null;
+    }
+  }
+
+  // Determine MIME type from resolved path
+  const ext = fullPath.substring(fullPath.lastIndexOf("."));
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
   // Read and return file
