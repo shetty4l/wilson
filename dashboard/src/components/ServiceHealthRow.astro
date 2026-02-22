@@ -1,0 +1,106 @@
+---
+interface Props {
+  name: string;
+  version: string | null;
+  status: "running" | "stopped";
+  port: number;
+  latestVersion?: string | null;
+}
+
+const { name, version, status, port, latestVersion } = Astro.props;
+
+const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+const isRunning = status === "running";
+const hasUpdate = latestVersion && version && latestVersion !== version;
+---
+
+<div
+  class="indicator-card bracket-corners flex items-center justify-between gap-4 py-3 service-row"
+  data-service={name}
+>
+  <!-- Service Info -->
+  <div class="flex items-center gap-4 min-w-0">
+    <!-- Status Dot -->
+    <div
+      class:list={[
+        "status-dot flex-shrink-0",
+        isRunning ? "status-dot-green" : "status-dot-red",
+      ]}
+      title={isRunning ? "Running" : "Stopped"}
+    >
+    </div>
+
+    <!-- Name & Port -->
+    <div class="min-w-0">
+      <div class="font-heading font-semibold text-text truncate">
+        {displayName}
+      </div>
+      <div class="font-mono text-xs text-text-muted">Port {port}</div>
+    </div>
+  </div>
+
+  <!-- Version -->
+  <div class="font-mono text-sm text-text-muted hidden sm:block">
+    {version ? `v${version}` : "—"}
+  </div>
+
+  <!-- Status -->
+  <div
+    class:list={[
+      "font-mono text-xs uppercase tracking-wide hidden md:block",
+      isRunning ? "text-green-nerv" : "text-red-nerv",
+    ]}
+  >
+    {status}
+  </div>
+
+  <!-- Actions -->
+  <div class="flex items-center gap-2 flex-shrink-0">
+    <!-- Restart Button -->
+    <button
+      type="button"
+      class="action-btn restart-btn font-mono text-xs px-3 py-1.5 border border-amber-nerv text-amber-nerv rounded-sm hover:bg-amber-nerv/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      data-action="restart"
+      data-service={name}
+    >
+      Restart
+    </button>
+
+    <!-- Update Button (only if update available) -->
+    {
+      hasUpdate && (
+        <button
+          type="button"
+          class="action-btn update-btn font-mono text-xs px-3 py-1.5 border border-orange-nerv text-orange-nerv rounded-sm hover:bg-orange-nerv/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          data-action="update"
+          data-service={name}
+          title={`Update to v${latestVersion}`}
+        >
+          Update
+        </button>
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .action-btn.confirming {
+    background-color: rgba(255, 191, 0, 0.2);
+    animation: pulse 1s infinite;
+  }
+
+  .action-btn.loading {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+</style>

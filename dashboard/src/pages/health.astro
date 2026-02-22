@@ -1,5 +1,29 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import ServiceHealthRow from "../components/ServiceHealthRow.astro";
+
+interface ServiceHealth {
+  name: string;
+  port: number;
+  status: "running" | "stopped";
+  version: string | null;
+  healthy: boolean;
+}
+
+// Fetch initial health data at build/SSR time
+let services: ServiceHealth[] = [];
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch("http://localhost:7748/api/health");
+  if (res.ok) {
+    services = await res.json();
+  } else {
+    fetchError = `Failed to fetch health data (${res.status})`;
+  }
+} catch (e) {
+  fetchError = "Unable to connect to Wilson API";
+}
 ---
 
 <Layout title="Health | Wilson Dashboard" currentPage="health">
@@ -8,19 +32,313 @@ import Layout from "../layouts/Layout.astro";
       <h2 class="font-heading font-semibold text-lg text-text">
         Service Health
       </h2>
+      <div class="flex items-center gap-3">
+        <span
+          id="refresh-indicator"
+          class="font-mono text-xs text-text-muted hidden"
+        >
+          Refreshing...
+        </span>
+        <span id="last-update" class="font-mono text-xs text-text-muted">
+          —
+        </span>
+      </div>
     </div>
 
-    <div class="indicator-card bracket-corners">
-      <div class="flex items-center justify-center py-12">
-        <div class="text-center">
-          <p class="font-mono text-lg text-amber-nerv mb-2">
-            Health page coming soon
-          </p>
-          <p class="font-mono text-xs text-text-muted">
-            Service status and management controls
-          </p>
+    <!-- Error State -->
+    {
+      fetchError && (
+        <div
+          id="error-container"
+          class="indicator-card bracket-corners border-red-nerv/50"
+        >
+          <div class="flex items-center gap-3 py-2">
+            <div class="status-dot status-dot-red" />
+            <div>
+              <p class="font-mono text-sm text-red-nerv">{fetchError}</p>
+              <p class="font-mono text-xs text-text-muted mt-1">
+                Auto-retrying every 30s...
+              </p>
+            </div>
+          </div>
         </div>
+      )
+    }
+
+    <!-- Services List -->
+    <div id="services-container" class="space-y-3">
+      {
+        services.length > 0 ? (
+          services.map((svc) => (
+            <ServiceHealthRow
+              name={svc.name}
+              version={svc.version}
+              status={svc.status}
+              port={svc.port}
+            />
+          ))
+        ) : !fetchError ? (
+          <div class="indicator-card bracket-corners">
+            <div class="flex items-center justify-center py-8">
+              <p class="font-mono text-sm text-text-muted">
+                Loading services...
+              </p>
+            </div>
+          </div>
+        ) : null
+      }
+    </div>
+
+    <!-- Status Message -->
+    <div id="status-message" class="hidden">
+      <div
+        class="indicator-card bracket-corners border-amber-nerv/50 py-2 px-4"
+      >
+        <p class="font-mono text-sm text-amber-nerv" id="status-text"></p>
       </div>
     </div>
   </div>
 </Layout>
+
+<script>
+  interface ServiceHealth {
+    name: string;
+    port: number;
+    status: "running" | "stopped";
+    version: string | null;
+    healthy: boolean;
+  }
+
+  let confirmingAction: { service: string; action: string } | null = null;
+  let confirmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Update last refresh time
+  function updateLastRefresh() {
+    const el = document.getElementById("last-update");
+    if (el) {
+      const now = new Date();
+      el.textContent = `Updated ${now.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })}`;
+    }
+  }
+
+  // Show status message
+  function showStatus(message: string, isError = false) {
+    const container = document.getElementById("status-message");
+    const text = document.getElementById("status-text");
+    if (container && text) {
+      text.textContent = message;
+      text.className = `font-mono text-sm ${isError ? "text-red-nerv" : "text-amber-nerv"}`;
+      container.classList.remove("hidden");
+      setTimeout(() => container.classList.add("hidden"), 5000);
+    }
+  }
+
+  // Render services to DOM
+  function renderServices(services: ServiceHealth[]) {
+    const container = document.getElementById("services-container");
+    if (!container) return;
+
+    container.innerHTML = services
+      .map((svc) => {
+        const displayName =
+          svc.name.charAt(0).toUpperCase() + svc.name.slice(1);
+        const isRunning = svc.status === "running";
+        const statusDotClass = isRunning
+          ? "status-dot-green"
+          : "status-dot-red";
+        const statusColor = isRunning ? "text-green-nerv" : "text-red-nerv";
+
+        return `
+        <div class="indicator-card bracket-corners flex items-center justify-between gap-4 py-3 service-row" data-service="${svc.name}">
+          <div class="flex items-center gap-4 min-w-0">
+            <div class="status-dot flex-shrink-0 ${statusDotClass}" title="${isRunning ? "Running" : "Stopped"}"></div>
+            <div class="min-w-0">
+              <div class="font-heading font-semibold text-text truncate">${displayName}</div>
+              <div class="font-mono text-xs text-text-muted">Port ${svc.port}</div>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-text-muted hidden sm:block">
+            ${svc.version ? `v${svc.version}` : "—"}
+          </div>
+          <div class="font-mono text-xs uppercase tracking-wide hidden md:block ${statusColor}">
+            ${svc.status}
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button type="button" class="action-btn restart-btn font-mono text-xs px-3 py-1.5 border border-amber-nerv text-amber-nerv rounded-sm hover:bg-amber-nerv/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" data-action="restart" data-service="${svc.name}">
+              Restart
+            </button>
+          </div>
+        </div>
+      `;
+      })
+      .join("");
+
+    // Re-attach event listeners
+    attachButtonListeners();
+  }
+
+  // Fetch health data
+  async function fetchHealth(): Promise<ServiceHealth[] | null> {
+    const indicator = document.getElementById("refresh-indicator");
+    if (indicator) indicator.classList.remove("hidden");
+
+    try {
+      const res = await fetch("/api/health");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      updateLastRefresh();
+
+      // Hide error container if it exists
+      const errorContainer = document.getElementById("error-container");
+      if (errorContainer) errorContainer.classList.add("hidden");
+
+      return data;
+    } catch (e) {
+      console.error("Failed to fetch health:", e);
+      return null;
+    } finally {
+      if (indicator) indicator.classList.add("hidden");
+    }
+  }
+
+  // Refresh health data
+  async function refreshHealth() {
+    const data = await fetchHealth();
+    if (data) {
+      renderServices(data);
+    }
+  }
+
+  // Execute action
+  async function executeAction(service: string, action: string) {
+    const btn = document.querySelector(
+      `[data-action="${action}"][data-service="${service}"]`,
+    ) as HTMLButtonElement | null;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("loading");
+      btn.textContent = action === "restart" ? "Restarting..." : "Updating...";
+    }
+
+    try {
+      const res = await fetch(`/api/actions/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showStatus(
+          `${service} ${action === "restart" ? "restarted" : "updated"} successfully`,
+        );
+        // Refresh after action
+        setTimeout(refreshHealth, 2000);
+      } else {
+        showStatus(data.error || `Failed to ${action} ${service}`, true);
+      }
+    } catch (e) {
+      showStatus(`Failed to ${action} ${service}: ${e}`, true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        btn.textContent = action === "restart" ? "Restart" : "Update";
+      }
+    }
+  }
+
+  // Handle button click
+  function handleActionClick(e: Event) {
+    const btn = e.target as HTMLButtonElement;
+    const action = btn.dataset.action;
+    const service = btn.dataset.service;
+
+    if (!action || !service) return;
+
+    // Check if already confirming this action
+    if (
+      confirmingAction &&
+      confirmingAction.service === service &&
+      confirmingAction.action === action
+    ) {
+      // Second click - execute
+      if (confirmTimeout) clearTimeout(confirmTimeout);
+      confirmingAction = null;
+      btn.classList.remove("confirming");
+      btn.textContent = action === "restart" ? "Restart" : "Update";
+      executeAction(service, action);
+    } else {
+      // First click - show confirmation
+      // Reset previous confirmation if any
+      if (confirmingAction) {
+        const prevBtn = document.querySelector(
+          `[data-action="${confirmingAction.action}"][data-service="${confirmingAction.service}"]`,
+        ) as HTMLButtonElement | null;
+        if (prevBtn) {
+          prevBtn.classList.remove("confirming");
+          prevBtn.textContent =
+            confirmingAction.action === "restart" ? "Restart" : "Update";
+        }
+        if (confirmTimeout) clearTimeout(confirmTimeout);
+      }
+
+      confirmingAction = { service, action };
+      btn.classList.add("confirming");
+      btn.textContent = "Confirm?";
+
+      // Reset after 3 seconds
+      confirmTimeout = setTimeout(() => {
+        btn.classList.remove("confirming");
+        btn.textContent = action === "restart" ? "Restart" : "Update";
+        confirmingAction = null;
+      }, 3000);
+    }
+  }
+
+  // Attach event listeners to action buttons
+  function attachButtonListeners() {
+    document.querySelectorAll(".action-btn").forEach((btn) => {
+      btn.removeEventListener("click", handleActionClick);
+      btn.addEventListener("click", handleActionClick);
+    });
+  }
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", () => {
+    updateLastRefresh();
+    attachButtonListeners();
+
+    // Auto-refresh every 30s
+    setInterval(refreshHealth, 30000);
+  });
+</script>
+
+<style>
+  .action-btn.confirming {
+    background-color: rgba(255, 191, 0, 0.2);
+    animation: pulse 1s infinite;
+  }
+
+  .action-btn.loading {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+</style>
