@@ -69,7 +69,7 @@ export interface CortexStats {
   receptors: {
     calendar_last_sync_at: string | null;
     calendar_buffer_pending: number;
-    thalamus_last_sync_at: string | null;
+    thalamus_last_run_at: string | null;
   };
   processing: {
     p50_ms: number;

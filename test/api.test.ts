@@ -41,7 +41,7 @@ function makeFullStats(overrides?: Partial<ServiceStats>): ServiceStats {
       receptors: {
         calendar_last_sync_at: new Date().toISOString(),
         calendar_buffer_pending: 0,
-        thalamus_last_sync_at: new Date().toISOString(),
+        thalamus_last_run_at: new Date().toISOString(),
       },
       processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
     },
@@ -99,7 +99,7 @@ describe("computeIndicators", () => {
           receptors: {
             calendar_last_sync_at: twoHoursAgo,
             calendar_buffer_pending: 5,
-            thalamus_last_sync_at: twoHoursAgo,
+            thalamus_last_run_at: twoHoursAgo,
           },
         },
       });
@@ -117,7 +117,7 @@ describe("computeIndicators", () => {
           receptors: {
             calendar_last_sync_at: new Date().toISOString(),
             calendar_buffer_pending: 25,
-            thalamus_last_sync_at: new Date().toISOString(),
+            thalamus_last_run_at: new Date().toISOString(),
           },
         },
       });
@@ -137,7 +137,7 @@ describe("computeIndicators", () => {
           receptors: {
             calendar_last_sync_at: sevenHoursAgo,
             calendar_buffer_pending: 0,
-            thalamus_last_sync_at: sevenHoursAgo,
+            thalamus_last_run_at: sevenHoursAgo,
           },
         },
       });
@@ -155,7 +155,7 @@ describe("computeIndicators", () => {
           receptors: {
             calendar_last_sync_at: new Date().toISOString(),
             calendar_buffer_pending: 100,
-            thalamus_last_sync_at: new Date().toISOString(),
+            thalamus_last_run_at: new Date().toISOString(),
           },
         },
       });
@@ -315,6 +315,69 @@ describe("computeIndicators", () => {
       const reasoning = getIndicator(indicators, "reasoning");
 
       expect(reasoning.status).toBe("red");
+    });
+
+    test("red when synapse error rate > 20%", () => {
+      // Fast cortex processing but synapse has high error rate
+      const stats = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
+          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 0 },
+        },
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 25, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const reasoning = getIndicator(indicators, "reasoning");
+
+      expect(reasoning.status).toBe("red");
+      expect(reasoning.detail).toContain("LLM errors");
+    });
+
+    test("yellow when synapse error rate 5-20%", () => {
+      const stats = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
+          inbox: { pending: 0, processing: 0, done_1h: 10, failed_1h: 0 },
+        },
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 10, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const reasoning = getIndicator(indicators, "reasoning");
+
+      expect(reasoning.status).toBe("yellow");
+      expect(reasoning.detail).toContain("LLM errors");
+    });
+
+    test("detail includes synapse latency for context", () => {
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          latency: { p50_ms: 5000, p95_ms: 10000, p99_ms: 15000 },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const reasoning = getIndicator(indicators, "reasoning");
+
+      expect(reasoning.detail).toContain("synapse");
+      expect(reasoning.detail).toContain("5.0s");
+    });
+
+    test("handles null synapse gracefully", () => {
+      const stats = makeFullStats({ synapse: null });
+      const indicators = computeIndicators(stats);
+      const reasoning = getIndicator(indicators, "reasoning");
+
+      // Should still work based on cortex data alone
+      expect(reasoning.status).toBe("green");
+      expect(reasoning.detail).not.toContain("synapse");
     });
   });
 
@@ -485,6 +548,83 @@ describe("computeIndicators", () => {
       expect(models.status).toBe("green");
       expect(models.label).toBe("Idle");
     });
+
+    test("red when error rate > 20%", () => {
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 25, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const models = getIndicator(indicators, "models");
+
+      expect(models.status).toBe("red");
+      expect(models.label).toBe("High Errors");
+      expect(models.detail).toContain("25%");
+    });
+
+    test("yellow when error rate 5-20%", () => {
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 10, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const models = getIndicator(indicators, "models");
+
+      expect(models.status).toBe("yellow");
+      expect(models.label).toBe("Degraded");
+      expect(models.detail).toContain("10%");
+    });
+
+    test("green when error rate < 5%", () => {
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 3, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const models = getIndicator(indicators, "models");
+
+      expect(models.status).toBe("green");
+      expect(models.label).toBe("Healthy");
+    });
+
+    test("handles zero total requests (no division by zero)", () => {
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 0, errors_1h: 0, by_provider: {} },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const models = getIndicator(indicators, "models");
+
+      expect(models.status).toBe("green");
+      expect(models.label).toBe("Healthy");
+    });
+
+    test("error rate takes precedence over healthy providers", () => {
+      // All providers healthy but 30% error rate → should be red
+      const stats = makeFullStats({
+        synapse: {
+          ...makeFullStats().synapse!,
+          requests: { total_1h: 100, errors_1h: 30, by_provider: {} },
+          providers: [
+            { name: "openai", healthy: true, consecutiveFailures: 0 },
+            { name: "anthropic", healthy: true, consecutiveFailures: 0 },
+          ],
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const models = getIndicator(indicators, "models");
+
+      expect(models.status).toBe("red");
+      expect(models.label).toBe("High Errors");
+    });
   });
 
   describe("supervision indicator", () => {
@@ -639,7 +779,7 @@ describe("computeIndicators", () => {
           receptors: {
             calendar_last_sync_at: null,
             calendar_buffer_pending: 0,
-            thalamus_last_sync_at: null,
+            thalamus_last_run_at: null,
           },
         },
       });
