@@ -1,0 +1,80 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = "Wilson Dashboard" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Wilson System Health Dashboard" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/dashboard/favicon.svg" />
+  </head>
+  <body class="bg-nerv-bg bg-grid min-h-screen">
+    <div class="min-h-screen flex flex-col">
+      <!-- Header -->
+      <header class="border-b border-nerv-border px-4 py-3 sm:px-6">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 flex items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                class="w-6 h-6 text-amber-nerv"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <h1 class="font-heading font-semibold text-lg sm:text-xl text-amber-nerv">
+              WILSON
+            </h1>
+          </div>
+          <div class="flex items-center gap-4">
+            <span
+              id="last-updated"
+              class="font-mono text-xs text-text-muted hidden sm:block"
+            >
+              --:--:--
+            </span>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-nerv animate-pulse-slow"
+              ></span>
+              <span class="font-mono text-xs text-text-muted">LIVE</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main content -->
+      <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+          <slot />
+        </div>
+      </main>
+
+      <!-- Footer -->
+      <footer class="border-t border-nerv-border px-4 py-3 sm:px-6">
+        <div class="max-w-7xl mx-auto">
+          <p class="font-mono text-xs text-text-muted text-center">
+            NERV CONTROL ROOM // SYSTEM MONITOR v1.0
+          </p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

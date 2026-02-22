@@ -43,6 +43,9 @@ describe("loadConfig", () => {
       JSON.stringify({
         port: 9999,
         cortex: { url: "http://example.com", apiKey: "test-key-123" },
+        services: {
+          engram: { url: "http://engram.example.com" },
+        },
         channels: { calendar: { enabled: true, pollIntervalSeconds: 300 } },
       }),
     );
@@ -54,6 +57,10 @@ describe("loadConfig", () => {
     expect(result.value.port).toBe(9999);
     expect(result.value.cortex.url).toBe("http://example.com");
     expect(result.value.cortex.apiKey).toBe("test-key-123");
+    expect(result.value.services.engram.url).toBe("http://engram.example.com");
+    // Defaults preserved for unspecified service URLs
+    expect(result.value.services.synapse.url).toBe("http://localhost:7750");
+    expect(result.value.services.cortex.url).toBe("http://localhost:7751");
     expect(result.value.channels.calendar.enabled).toBe(true);
     expect(result.value.channels.calendar.pollIntervalSeconds).toBe(300);
     // Defaults preserved for unspecified fields

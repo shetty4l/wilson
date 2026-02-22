@@ -2,6 +2,7 @@ import { getConfigDir, getDataDir } from "@shetty4l/core/config";
 import { err, ok, type Result } from "@shetty4l/core/result";
 import { homedir } from "os";
 import { join } from "path";
+import type { WilsonConfig } from "./config";
 
 export interface ServiceConfig {
   name: string;
@@ -17,15 +18,30 @@ export interface ServiceConfig {
   logFiles: Record<string, string>;
 }
 
+interface StaticServiceConfig {
+  name: string;
+  displayName: string;
+  repo: string;
+  port: number;
+  installBase: string;
+  configDir: string;
+  dataDir?: string;
+  currentVersionFile: string;
+  cliPath: string;
+  logFiles: Record<string, string>;
+}
+
 const HOME = homedir();
 
-export const SERVICES: readonly ServiceConfig[] = [
+/**
+ * Static service definitions (without healthUrl, which comes from config).
+ */
+const STATIC_SERVICES: readonly StaticServiceConfig[] = [
   {
     name: "engram",
     displayName: "Engram",
     repo: "shetty4l/engram",
     port: 7749,
-    healthUrl: "http://localhost:7749/health",
     installBase: join(HOME, "srv", "engram"),
     configDir: getConfigDir("engram"),
     dataDir: getDataDir("engram"),
@@ -40,7 +56,6 @@ export const SERVICES: readonly ServiceConfig[] = [
     displayName: "Synapse",
     repo: "shetty4l/synapse",
     port: 7750,
-    healthUrl: "http://localhost:7750/health",
     installBase: join(HOME, "srv", "synapse"),
     configDir: getConfigDir("synapse"),
     currentVersionFile: join(HOME, "srv", "synapse", "current-version"),
@@ -54,7 +69,6 @@ export const SERVICES: readonly ServiceConfig[] = [
     displayName: "Cortex",
     repo: "shetty4l/cortex",
     port: 7751,
-    healthUrl: "http://localhost:7751/health",
     installBase: join(HOME, "srv", "cortex"),
     configDir: getConfigDir("cortex"),
     dataDir: getDataDir("cortex"),
@@ -69,7 +83,6 @@ export const SERVICES: readonly ServiceConfig[] = [
     displayName: "Wilson",
     repo: "shetty4l/wilson",
     port: 7748,
-    healthUrl: "http://localhost:7748/health",
     installBase: join(HOME, "srv", "wilson"),
     configDir: getConfigDir("wilson"),
     currentVersionFile: join(HOME, "srv", "wilson", "current-version"),
@@ -80,14 +93,52 @@ export const SERVICES: readonly ServiceConfig[] = [
   },
 ] as const;
 
-export function getService(name: string): Result<ServiceConfig, string> {
-  const svc = SERVICES.find((s) => s.name === name);
+/**
+ * Get services with healthUrl derived from config.
+ * Falls back to localhost defaults if config is not provided.
+ */
+export function getServices(config?: WilsonConfig): readonly ServiceConfig[] {
+  return STATIC_SERVICES.map((svc) => {
+    let healthUrl: string;
+    if (svc.name === "wilson") {
+      // Wilson uses its own port/host from config
+      const host = config?.host ?? "localhost";
+      const port = config?.port ?? 7748;
+      // Use localhost for health checks even if host is 0.0.0.0
+      const healthHost = host === "0.0.0.0" ? "localhost" : host;
+      healthUrl = `http://${healthHost}:${port}/health`;
+    } else if (config?.services) {
+      const svcConfig =
+        config.services[svc.name as keyof typeof config.services];
+      healthUrl = svcConfig
+        ? `${svcConfig.url}/health`
+        : `http://localhost:${svc.port}/health`;
+    } else {
+      healthUrl = `http://localhost:${svc.port}/health`;
+    }
+    return { ...svc, healthUrl };
+  });
+}
+
+/**
+ * Legacy SERVICES array for backward compatibility.
+ * Uses default localhost URLs.
+ * @deprecated Use getServices(config) instead for config-aware URLs.
+ */
+export const SERVICES: readonly ServiceConfig[] = getServices();
+
+export function getService(
+  name: string,
+  config?: WilsonConfig,
+): Result<ServiceConfig, string> {
+  const services = config ? getServices(config) : SERVICES;
+  const svc = services.find((s) => s.name === name);
   if (!svc) return err(`unknown service "${name}"`);
   return ok(svc);
 }
 
 export function getServiceNames(): string[] {
-  return SERVICES.map((s) => s.name);
+  return STATIC_SERVICES.map((s) => s.name);
 }
 
 /**
