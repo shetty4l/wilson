@@ -64,24 +64,23 @@ export const SERVICES: readonly ServiceConfig[] = [
       daemon: join(getConfigDir("cortex"), "cortex.log"),
     },
   },
+  {
+    name: "wilson",
+    displayName: "Wilson",
+    repo: "shetty4l/wilson",
+    port: 7748,
+    healthUrl: "http://localhost:7748/health",
+    installBase: join(HOME, "srv", "wilson"),
+    configDir: getConfigDir("wilson"),
+    currentVersionFile: join(HOME, "srv", "wilson", "current-version"),
+    cliPath: join(HOME, ".local", "bin", "wilson"),
+    logFiles: {
+      daemon: join(getConfigDir("wilson"), "wilson.log"),
+    },
+  },
 ] as const;
 
 export const UPDATER_LOG = join(HOME, "Library", "Logs", "wilson-updater.log");
-
-export const WILSON_CONFIG = {
-  name: "wilson",
-  displayName: "Wilson",
-  repo: "shetty4l/wilson",
-  port: 7748,
-  healthUrl: "http://localhost:7748/health",
-  installBase: join(HOME, "srv", "wilson"),
-  configDir: getConfigDir("wilson"),
-  currentVersionFile: join(HOME, "srv", "wilson", "current-version"),
-  cliPath: join(HOME, ".local", "bin", "wilson"),
-  logFiles: {
-    daemon: join(getConfigDir("wilson"), "wilson.log"),
-  },
-} as const;
 
 export function getService(name: string): Result<ServiceConfig, string> {
   const svc = SERVICES.find((s) => s.name === name);
@@ -98,5 +97,5 @@ export function getServiceNames(): string[] {
  * Includes each service name + "updater" for the wilson update log.
  */
 export function getLogSources(): string[] {
-  return [...getServiceNames(), "updater", "wilson"];
+  return [...getServiceNames(), "updater"];
 }

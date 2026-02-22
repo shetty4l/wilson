@@ -13,13 +13,11 @@ export async function cmdUpdate(
 
   if (serviceName) {
     // Validate service name
-    if (serviceName !== "self") {
-      const svcResult = getService(serviceName);
-      if (!svcResult.ok) {
-        console.error(`Error: ${svcResult.error}`);
-        console.error(`Services: ${getServiceNames().join(", ")}, self`);
-        return 1;
-      }
+    const svcResult = getService(serviceName);
+    if (!svcResult.ok) {
+      console.error(`Error: ${svcResult.error}`);
+      console.error(`Services: ${getServiceNames().join(", ")}`);
+      return 1;
     }
 
     if (!json) {

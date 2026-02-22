@@ -69,8 +69,14 @@ check_and_update() {
   log "INFO: ${name}: new version ${latest} (current: ${current:-none})"
 
   # Delegate to the service's own installer
+  # Wilson needs SKIP_LAUNCHAGENT_RELOAD=1 because the updater LaunchAgent is
+  # separate from the daemon — we don't want install.sh to reload it.
   local install_url="https://github.com/${repo}/releases/latest/download/install.sh"
-  curl -fsSL "${auth_header[@]}" "$install_url" 2>/dev/null | GITHUB_TOKEN="${GITHUB_TOKEN:-}" bash >> "$LOG_FILE" 2>&1 || {
+  local install_env="GITHUB_TOKEN=${GITHUB_TOKEN:-}"
+  if [ "$name" = "wilson" ]; then
+    install_env="SKIP_LAUNCHAGENT_RELOAD=1 ${install_env}"
+  fi
+  curl -fsSL "${auth_header[@]}" "$install_url" 2>/dev/null | env ${install_env} bash >> "$LOG_FILE" 2>&1 || {
     log "ERROR: ${name}: install.sh failed"
     return 1
   }
@@ -86,68 +92,16 @@ check_and_update() {
       }
     }
 
-    # Verify health after restart
-    sleep 2
-    "$cli_path" health >> "$LOG_FILE" 2>&1 || {
-      log "WARN: ${name}: post-restart health check failed"
-    }
+    # Verify health after restart (skip for wilson — restart already verifies)
+    if [ "$name" != "wilson" ]; then
+      sleep 2
+      "$cli_path" health >> "$LOG_FILE" 2>&1 || {
+        log "WARN: ${name}: post-restart health check failed"
+      }
+    fi
   fi
 
   log "INFO: ${name}: updated to ${latest}"
-}
-
-# --- wilson self-update ---
-# Separate from check_and_update because wilson is a CLI, not a daemon.
-# check_and_update would attempt `wilson restart` after updating, which is
-# wrong — there's no long-running wilson process to restart.
-
-check_and_update_self() {
-  local repo="shetty4l/wilson"
-  local install_base="${HOME}/srv/wilson"
-  local current_file="${install_base}/current-version"
-
-  # Auth header for GitHub API (if token available)
-  local auth_header=()
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-  fi
-
-  local current=""
-  if [ -f "$current_file" ]; then
-    current=$(cat "$current_file")
-  fi
-
-  local release_json
-  release_json=$(curl -fsSL "${auth_header[@]}" "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null) || {
-    log "ERROR: wilson: failed to fetch latest release"
-    return 1
-  }
-
-  local latest
-  latest=$(echo "$release_json" | jq -r '.tag_name')
-  if [ -z "$latest" ] || [ "$latest" = "null" ]; then
-    log "ERROR: wilson: no release tag found"
-    return 1
-  fi
-
-  if [ "$current" = "$latest" ]; then
-    return 0
-  fi
-
-  log "INFO: wilson: new version ${latest} (current: ${current:-none})"
-
-  local install_url="https://github.com/${repo}/releases/latest/download/install.sh"
-  curl -fsSL "${auth_header[@]}" "$install_url" 2>/dev/null | SKIP_LAUNCHAGENT_RELOAD=1 GITHUB_TOKEN="${GITHUB_TOKEN:-}" bash >> "$LOG_FILE" 2>&1 || {
-    log "ERROR: wilson: install.sh failed"
-    return 1
-  }
-
-  log "INFO: wilson: updated to ${latest}"
-
-  # No LaunchAgent reload needed — the plist points to wilson/latest/deploy/
-  # which follows the symlink, so the next StartInterval tick automatically
-  # runs the new version. A bootout/bootstrap here would kill all processes
-  # in the LaunchAgent session, including freshly-started service daemons.
 }
 
 # --- main ---
@@ -191,9 +145,9 @@ case "$TARGET" in
     log "INFO: update check starting (cortex only)"
     check_and_update "cortex" "shetty4l/cortex" || (( failures++ ))
     ;;
-  self)
-    log "INFO: update check starting (wilson self)"
-    check_and_update_self || (( failures++ ))
+  wilson)
+    log "INFO: update check starting (wilson only)"
+    check_and_update "wilson" "shetty4l/wilson" || (( failures++ ))
     ;;
   all)
     log "INFO: update check starting"
@@ -201,10 +155,10 @@ case "$TARGET" in
     check_and_update "engram"  "shetty4l/engram"  || (( failures++ ))
     check_and_update "synapse" "shetty4l/synapse" || (( failures++ ))
     check_and_update "cortex"  "shetty4l/cortex"  || (( failures++ ))
-    check_and_update_self                          || (( failures++ ))
+    check_and_update "wilson"  "shetty4l/wilson"  || (( failures++ ))
     ;;
   *)
-    echo "Usage: wilson-update.sh [engram|synapse|cortex|self|all]" >&2
+    echo "Usage: wilson-update.sh [engram|synapse|cortex|wilson|all]" >&2
     exit 1
     ;;
 esac
