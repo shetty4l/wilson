@@ -1,9 +1,12 @@
 ---
+import Nav from "../components/Nav.astro";
+
 interface Props {
   title?: string;
+  currentPage?: "overview" | "health" | "stats" | "logs";
 }
 
-const { title = "Wilson Dashboard" } = Astro.props;
+const { title = "Wilson Dashboard", currentPage = "overview" } = Astro.props;
 ---
 
 <!doctype html>
@@ -64,6 +67,9 @@ const { title = "Wilson Dashboard" } = Astro.props;
           </div>
         </div>
       </header>
+
+      <!-- Navigation -->
+      <Nav currentPage={currentPage} />
 
       <!-- Main content -->
       <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">

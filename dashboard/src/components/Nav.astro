@@ -1,0 +1,40 @@
+---
+interface Props {
+  currentPage?: "overview" | "health" | "stats" | "logs";
+}
+
+const { currentPage = "overview" } = Astro.props;
+
+const navItems = [
+  { id: "overview", label: "Overview", href: "/dashboard/" },
+  { id: "health", label: "Health", href: "/dashboard/health/" },
+  { id: "stats", label: "Stats", href: "/dashboard/stats/" },
+  { id: "logs", label: "Logs", href: "/dashboard/logs/" },
+] as const;
+---
+
+<nav class="border-b border-nerv-border px-4 sm:px-6 overflow-x-auto">
+  <div class="max-w-7xl mx-auto">
+    <ul class="flex gap-1 min-w-max">
+      {navItems.map((item) => {
+        const isActive = currentPage === item.id;
+        return (
+          <li>
+            <a
+              href={item.href}
+              class:list={[
+                "font-mono text-sm px-4 py-3 block transition-colors whitespace-nowrap",
+                isActive
+                  ? "text-amber-nerv border-b-2 border-amber-nerv"
+                  : "text-text-muted hover:text-text border-b-2 border-transparent",
+              ]}
+              aria-current={isActive ? "page" : undefined}
+            >
+              {item.label}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</nav>
