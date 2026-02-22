@@ -109,6 +109,29 @@ WRAPPER
   ok "wilson-ctl CLI linked to ${BIN_DIR}/wilson-ctl"
 }
 
+# --- Wilson-specific: Tailscale serve for HTTPS dashboard access ---
+
+# Ports for Tailscale serve configuration
+WILSON_HTTP_PORT=7748
+WILSON_HTTPS_PORT=8443
+
+setup_tailscale_serve() {
+  local tailscale_bin="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+
+  if [ ! -x "$tailscale_bin" ]; then
+    info "Tailscale not found, skipping HTTPS setup"
+    return 0
+  fi
+
+  info "Configuring Tailscale serve for Wilson dashboard..."
+  if "$tailscale_bin" serve --bg --https="$WILSON_HTTPS_PORT" "http://127.0.0.1:$WILSON_HTTP_PORT" 2>/dev/null; then
+    ok "Tailscale serve configured (HTTPS:${WILSON_HTTPS_PORT} -> localhost:${WILSON_HTTP_PORT})"
+  else
+    warn "Failed to configure Tailscale serve. You may need to run manually:"
+    warn "  $tailscale_bin serve --bg --https=$WILSON_HTTPS_PORT http://127.0.0.1:$WILSON_HTTP_PORT"
+  fi
+}
+
 # --- Wilson-specific: status ---
 
 print_status() {
@@ -123,6 +146,20 @@ print_status() {
   echo "  CTL CLI:      ${BIN_DIR}/wilson-ctl"
   echo "  Daemon log:   ~/.config/wilson/wilson.log"
   echo "  Supervisor:   ~/.config/wilson/wilson-ctl.log"
+  echo ""
+  echo "  Dashboard:"
+  echo "    Local:      http://localhost:${WILSON_HTTP_PORT}/dashboard/"
+
+  # Try to get Tailscale hostname for HTTPS URL
+  local tailscale_bin="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+  if [ -x "$tailscale_bin" ]; then
+    local ts_hostname
+    ts_hostname=$("$tailscale_bin" status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//')
+    if [ -n "$ts_hostname" ]; then
+      echo "    Tailscale:  https://${ts_hostname}:${WILSON_HTTPS_PORT}/dashboard/"
+    fi
+  fi
+
   echo ""
   echo "  Daemon management:"
   echo "    wilson start / stop / status / health / logs"
@@ -148,6 +185,7 @@ main() {
   install_cli
   install_ctl_cli
   install_launch_agent
+  setup_tailscale_serve
   print_status
 }
 
