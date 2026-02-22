@@ -19,7 +19,7 @@
     "prepare": "[ -d .git ] && husky || true"
   },
   "dependencies": {
-    "@shetty4l/core": "^0.1.30"
+    "@shetty4l/core": "^0.1.33"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",
