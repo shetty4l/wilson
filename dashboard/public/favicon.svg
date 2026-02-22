@@ -1,0 +1,17 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" fill="#0a0a0f"/>
+  
+  <!-- Bracket corners (amber) -->
+  <!-- Top-left -->
+  <path d="M2 2 L2 8 L4 8 L4 4 L8 4 L8 2 Z" fill="#ffbf00"/>
+  <!-- Top-right -->
+  <path d="M24 2 L24 4 L28 4 L28 8 L30 8 L30 2 Z" fill="#ffbf00"/>
+  <!-- Bottom-left -->
+  <path d="M2 24 L2 30 L8 30 L8 28 L4 28 L4 24 Z" fill="#ffbf00"/>
+  <!-- Bottom-right -->
+  <path d="M24 30 L30 30 L30 24 L28 24 L28 28 L24 28 Z" fill="#ffbf00"/>
+  
+  <!-- Stylized "W" (amber, angular NERV style) -->
+  <path d="M8 10 L11 22 L16 14 L21 22 L24 10 L21.5 10 L19.5 17 L16 12 L12.5 17 L10.5 10 Z" fill="#ffbf00"/>
+</svg>

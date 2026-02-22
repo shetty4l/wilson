@@ -41,12 +41,21 @@ const { title = "Wilson Dashboard" } = Astro.props;
             </h1>
           </div>
           <div class="flex items-center gap-4">
-            <span
-              id="last-updated"
-              class="font-mono text-xs text-text-muted hidden sm:block"
-            >
-              --:--:--
-            </span>
+            <div class="text-right hidden sm:block">
+              <div
+                id="live-clock"
+                class="font-mono text-lg text-amber-nerv tracking-wider"
+                style="text-shadow: 0 0 10px rgba(255, 191, 0, 0.3);"
+              >
+                --:--:--
+              </div>
+              <div
+                id="live-date"
+                class="font-mono text-xs text-text-muted uppercase tracking-wide"
+              >
+                --- --, ----
+              </div>
+            </div>
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-amber-nerv animate-pulse-slow"
               ></span>
@@ -78,3 +87,36 @@ const { title = "Wilson Dashboard" } = Astro.props;
 <style is:global>
   @import "../styles/global.css";
 </style>
+
+<script>
+  function updateClock() {
+    const now = new Date();
+    
+    // Time in 24h format
+    const time = now.toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+    
+    // Date format: FEB 22, 2026
+    const date = now.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric'
+    }).toUpperCase();
+    
+    const clockEl = document.getElementById('live-clock');
+    const dateEl = document.getElementById('live-date');
+    
+    if (clockEl) clockEl.textContent = time;
+    if (dateEl) dateEl.textContent = date;
+  }
+  
+  // Initial update
+  updateClock();
+  
+  // Update every second
+  setInterval(updateClock, 1000);
+</script>
