@@ -73,6 +73,24 @@ install_launch_agent() {
   install_single_agent "com.suyash.wilson" "Daemon LaunchAgent (KeepAlive)"
 }
 
+# --- Wilson-specific: wilson-ctl CLI wrapper ---
+
+install_ctl_cli() {
+  local version_dir="${INSTALL_BASE}/${RELEASE_TAG}"
+  local wrapper="${version_dir}/wilson-ctl"
+
+  cat > "$wrapper" <<WRAPPER
+#!/usr/bin/env bash
+exec bun "${version_dir}/src/ctl-cli.ts" "\$@"
+WRAPPER
+  chmod +x "$wrapper"
+
+  # Symlink to BIN_DIR
+  mkdir -p "$BIN_DIR"
+  ln -sf "$wrapper" "${BIN_DIR}/wilson-ctl"
+  ok "wilson-ctl CLI linked to ${BIN_DIR}/wilson-ctl"
+}
+
 # --- Wilson-specific: status ---
 
 print_status() {
@@ -84,17 +102,15 @@ print_status() {
   echo "  Version:      ${RELEASE_TAG}"
   echo "  Install:      ${INSTALL_BASE}/latest"
   echo "  CLI:          ${BIN_DIR}/wilson"
+  echo "  CTL CLI:      ${BIN_DIR}/wilson-ctl"
   echo "  Daemon log:   ~/.config/wilson/wilson.log"
   echo "  Update log:   ~/Library/Logs/wilson-updater.log"
   echo ""
-  echo "  Check service status:"
-  echo "    wilson status"
+  echo "  Daemon management:"
+  echo "    wilson start / stop / status / health / logs"
   echo ""
-  echo "  Check service health:"
-  echo "    wilson health"
-  echo ""
-  echo "  View update logs:"
-  echo "    wilson logs updater"
+  echo "  Orchestration (all services):"
+  echo "    wilson-ctl status / health / logs / restart / update"
   echo ""
 }
 
@@ -111,6 +127,7 @@ main() {
   update_symlink
   prune_versions
   install_cli
+  install_ctl_cli
   install_launch_agent
   print_status
 }
