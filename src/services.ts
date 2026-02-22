@@ -72,9 +72,15 @@ export const WILSON_CONFIG = {
   name: "wilson",
   displayName: "Wilson",
   repo: "shetty4l/wilson",
+  port: 7748,
+  healthUrl: "http://localhost:7748/health",
   installBase: join(HOME, "srv", "wilson"),
+  configDir: getConfigDir("wilson"),
   currentVersionFile: join(HOME, "srv", "wilson", "current-version"),
   cliPath: join(HOME, ".local", "bin", "wilson"),
+  logFiles: {
+    daemon: join(getConfigDir("wilson"), "wilson.log"),
+  },
 } as const;
 
 export function getService(name: string): Result<ServiceConfig, string> {
