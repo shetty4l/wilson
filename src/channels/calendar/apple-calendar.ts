@@ -22,15 +22,33 @@ export interface CalendarEvent {
 
 // --- JXA script ---
 
-function buildJxaScript(lookAheadDays: number): string {
+function buildJxaScript(
+  lookAheadDays: number,
+  includeCalendars?: string[],
+): string {
+  // Build calendar filter logic if includeCalendars is provided
+  const filterLogic =
+    includeCalendars && includeCalendars.length > 0
+      ? `
+var includeList = ${JSON.stringify(includeCalendars.map((c) => c.toLowerCase()))};
+function shouldInclude(calName) {
+  return includeList.indexOf(calName.toLowerCase()) !== -1;
+}
+`
+      : `
+function shouldInclude(calName) { return true; }
+`;
+
   return `
 var Calendar = Application("Calendar");
 var now = new Date();
 var end = new Date(now.getTime() + ${lookAheadDays} * 86400000);
 var results = [];
 var calendars = Calendar.calendars();
+${filterLogic}
 for (var i = 0; i < calendars.length; i++) {
   var cal = calendars[i];
+  if (!shouldInclude(cal.name())) continue;
   var events = cal.events.whose({
     _and: [
       { startDate: { _greaterThan: now } },
