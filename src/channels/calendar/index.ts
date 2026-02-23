@@ -11,6 +11,7 @@
 import { createLogger } from "@shetty4l/core/log";
 import type { StateLoader } from "@shetty4l/core/state";
 import { createHash } from "crypto";
+import { CalendarChannelState } from "../../state/calendar";
 import type { CortexClient } from "../cortex-client";
 import type { Channel, ChannelStats } from "../index";
 import { readAppleCalendar, type SpawnFn } from "./apple-calendar";
@@ -37,18 +38,19 @@ export class CalendarChannel implements Channel {
 
   private running = false;
   private timer: Timer | null = null;
-  private lastHash: string | null = null;
-  private lastExtendedSyncDate: string | null = null; // "YYYY-MM-DD"
   private spawnFn: SpawnFn | undefined;
   private stateLoader: StateLoader | null;
+  private state: CalendarChannelState | null = null;
 
-  // Stats tracking
-  private stats: ChannelStats = {
-    lastSyncAt: null,
-    lastPostAt: null,
+  // In-memory fallback for tests without stateLoader
+  private memoryState = {
+    lastHash: null as string | null,
+    lastExtendedSyncDate: null as string | null,
+    lastSyncAt: null as Date | null,
+    lastPostAt: null as Date | null,
     eventsPosted: 0,
-    status: "healthy",
-    error: null,
+    status: "healthy" as string,
+    error: null as string | null,
   };
 
   constructor(
@@ -71,6 +73,11 @@ export class CalendarChannel implements Channel {
     this.running = true;
     log("starting calendar channel");
 
+    // Load persisted state if stateLoader available
+    if (this.stateLoader) {
+      this.state = this.stateLoader.load(CalendarChannelState, "calendar");
+    }
+
     // Initial sync immediately
     await this.sync();
 
@@ -91,20 +98,38 @@ export class CalendarChannel implements Channel {
   }
 
   getStats(): ChannelStats {
-    return { ...this.stats };
+    if (this.state) {
+      return {
+        lastSyncAt: this.state.lastSyncAt?.getTime() ?? null,
+        lastPostAt: this.state.lastPostAt?.getTime() ?? null,
+        eventsPosted: this.state.eventsPosted,
+        status: this.state.status as ChannelStats["status"],
+        error: this.state.error,
+      };
+    }
+    // Fallback to in-memory state for tests
+    return {
+      lastSyncAt: this.memoryState.lastSyncAt?.getTime() ?? null,
+      lastPostAt: this.memoryState.lastPostAt?.getTime() ?? null,
+      eventsPosted: this.memoryState.eventsPosted,
+      status: this.memoryState.status as ChannelStats["status"],
+      error: this.memoryState.error,
+    };
   }
 
   async sync(): Promise<void> {
     if (!this.running) return;
+
+    const s = this.state ?? this.memoryState;
 
     try {
       // Determine look-ahead window
       const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
       let windowDays: number;
 
-      if (this.lastExtendedSyncDate !== today) {
+      if (s.lastExtendedSyncDate !== today) {
         windowDays = this.config.extendedLookAheadDays;
-        this.lastExtendedSyncDate = today;
+        s.lastExtendedSyncDate = today;
       } else {
         windowDays = this.config.lookAheadDays;
       }
@@ -117,9 +142,9 @@ export class CalendarChannel implements Channel {
       });
 
       // Update lastSyncAt - we successfully read from Apple Calendar
-      this.stats.lastSyncAt = Date.now();
-      this.stats.status = "healthy";
-      this.stats.error = null;
+      s.lastSyncAt = new Date();
+      s.status = "healthy";
+      s.error = null;
 
       // Sort for stable hashing
       const sorted = [...events].sort(
@@ -132,15 +157,15 @@ export class CalendarChannel implements Channel {
         .update(JSON.stringify(sorted))
         .digest("hex");
 
-      if (hash === this.lastHash) {
+      if (hash === s.lastHash) {
         log(
           `sync: no changes (${sorted.length} events, ${windowDays}d window)`,
         );
-        this.stats.eventsPosted = 0;
+        s.eventsPosted = 0;
         return;
       }
 
-      this.lastHash = hash;
+      s.lastHash = hash;
 
       // Post to cortex
       const result = await this.cortex.receive({
@@ -155,18 +180,18 @@ export class CalendarChannel implements Channel {
         log(
           `sync: posted ${sorted.length} events (${windowDays}d window, status: ${result.value.status})`,
         );
-        this.stats.lastPostAt = Date.now();
-        this.stats.eventsPosted = sorted.length;
+        s.lastPostAt = new Date();
+        s.eventsPosted = sorted.length;
       } else {
         log(`sync: cortex error: ${result.error}`);
-        this.stats.status = "degraded";
-        this.stats.error = `Cortex error: ${result.error}`;
+        s.status = "degraded";
+        s.error = `Cortex error: ${result.error}`;
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       log(`sync error: ${errorMsg}`);
-      this.stats.status = "error";
-      this.stats.error = errorMsg;
+      s.status = "error";
+      s.error = errorMsg;
     }
   }
 
@@ -174,16 +199,22 @@ export class CalendarChannel implements Channel {
 
   /** @internal — exposed for testing */
   _getLastHash(): string | null {
-    return this.lastHash;
+    return this.state?.lastHash ?? this.memoryState.lastHash;
   }
 
   /** @internal — exposed for testing */
   _getLastExtendedSyncDate(): string | null {
-    return this.lastExtendedSyncDate;
+    return (
+      this.state?.lastExtendedSyncDate ?? this.memoryState.lastExtendedSyncDate
+    );
   }
 
   /** @internal — exposed for testing */
   _setLastExtendedSyncDate(date: string | null): void {
-    this.lastExtendedSyncDate = date;
+    if (this.state) {
+      this.state.lastExtendedSyncDate = date;
+    } else {
+      this.memoryState.lastExtendedSyncDate = date;
+    }
   }
 }
