@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "@shetty4l/core/log";
+import type { StateLoader } from "@shetty4l/core/state";
 import { createHash } from "crypto";
 import type { CortexClient } from "../cortex-client";
 import type { Channel, ChannelStats } from "../index";
@@ -39,6 +40,7 @@ export class CalendarChannel implements Channel {
   private lastHash: string | null = null;
   private lastExtendedSyncDate: string | null = null; // "YYYY-MM-DD"
   private spawnFn: SpawnFn | undefined;
+  private stateLoader: StateLoader | null;
 
   // Stats tracking
   private stats: ChannelStats = {
@@ -52,9 +54,17 @@ export class CalendarChannel implements Channel {
   constructor(
     private cortex: CortexClient,
     private config: CalendarChannelConfig,
+    stateLoaderOrSpawnFn?: StateLoader | SpawnFn,
     spawnFn?: SpawnFn,
   ) {
-    this.spawnFn = spawnFn;
+    // Support both old signature (cortex, config, spawnFn) and new (cortex, config, stateLoader, spawnFn)
+    if (typeof stateLoaderOrSpawnFn === "function") {
+      this.stateLoader = null;
+      this.spawnFn = stateLoaderOrSpawnFn;
+    } else {
+      this.stateLoader = stateLoaderOrSpawnFn ?? null;
+      this.spawnFn = spawnFn;
+    }
   }
 
   async start(): Promise<void> {
