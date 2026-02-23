@@ -39,12 +39,19 @@ function makeFullStats(overrides?: Partial<ServiceStats>): ServiceStats {
       inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 0 },
       outbox: { pending: 0, delivered_24h: 5, dead_total: 0 },
       receptors: {
-        calendar_last_sync_at: new Date().toISOString(),
-        calendar_buffer_pending: 0,
         thalamus_last_run_at: new Date().toISOString(),
         buffer_pending_total: 0,
       },
       processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
+    },
+    channels: {
+      calendar: {
+        last_sync_at: new Date().toISOString(),
+        last_post_at: new Date().toISOString(),
+        events_posted: 5,
+        status: "healthy",
+        error: null,
+      },
     },
     health: {
       engram: { status: "healthy", version: "0.2.0", uptime_seconds: 3600 },
@@ -81,7 +88,7 @@ describe("computeIndicators", () => {
   });
 
   describe("sensing indicator", () => {
-    test("green when sync < 1h and buffer < 10", () => {
+    test("green when sync < 1h and status healthy", () => {
       const stats = makeFullStats();
       const indicators = computeIndicators(stats);
       const sensing = getIndicator(indicators, "sensing");
@@ -95,13 +102,13 @@ describe("computeIndicators", () => {
         Date.now() - 2 * 60 * 60 * 1000,
       ).toISOString();
       const stats = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          receptors: {
-            calendar_last_sync_at: twoHoursAgo,
-            calendar_buffer_pending: 5,
-            thalamus_last_run_at: twoHoursAgo,
-            buffer_pending_total: 0,
+        channels: {
+          calendar: {
+            last_sync_at: twoHoursAgo,
+            last_post_at: twoHoursAgo,
+            events_posted: 5,
+            status: "healthy",
+            error: null,
           },
         },
       });
@@ -112,15 +119,15 @@ describe("computeIndicators", () => {
       expect(sensing.label).toBe("Delayed");
     });
 
-    test("yellow when buffer 10-50", () => {
+    test("yellow when status is degraded", () => {
       const stats = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 25,
-            thalamus_last_run_at: new Date().toISOString(),
-            buffer_pending_total: 0,
+        channels: {
+          calendar: {
+            last_sync_at: new Date().toISOString(),
+            last_post_at: new Date().toISOString(),
+            events_posted: 5,
+            status: "degraded",
+            error: "Cortex returned 503",
           },
         },
       });
@@ -135,13 +142,13 @@ describe("computeIndicators", () => {
         Date.now() - 7 * 60 * 60 * 1000,
       ).toISOString();
       const stats = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          receptors: {
-            calendar_last_sync_at: sevenHoursAgo,
-            calendar_buffer_pending: 0,
-            thalamus_last_run_at: sevenHoursAgo,
-            buffer_pending_total: 0,
+        channels: {
+          calendar: {
+            last_sync_at: sevenHoursAgo,
+            last_post_at: sevenHoursAgo,
+            events_posted: 5,
+            status: "healthy",
+            error: null,
           },
         },
       });
@@ -152,15 +159,15 @@ describe("computeIndicators", () => {
       expect(sensing.label).toBe("Stale");
     });
 
-    test("red when buffer > 50", () => {
+    test("red when status is error", () => {
       const stats = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 100,
-            thalamus_last_run_at: new Date().toISOString(),
-            buffer_pending_total: 0,
+        channels: {
+          calendar: {
+            last_sync_at: new Date().toISOString(),
+            last_post_at: null,
+            events_posted: 0,
+            status: "error",
+            error: "Failed to read Apple Calendar",
           },
         },
       });
@@ -170,8 +177,8 @@ describe("computeIndicators", () => {
       expect(sensing.status).toBe("red");
     });
 
-    test("green/Idle when cortex is null", () => {
-      const stats = makeFullStats({ cortex: null });
+    test("green/Idle when no channels configured", () => {
+      const stats = makeFullStats({ channels: undefined });
       const indicators = computeIndicators(stats);
       const sensing = getIndicator(indicators, "sensing");
 
@@ -198,8 +205,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: eightHoursAgo,
             buffer_pending_total: 5,
           },
@@ -217,8 +222,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 25,
           },
@@ -239,8 +242,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: fourteenHoursAgo,
             buffer_pending_total: 0,
           },
@@ -258,8 +259,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 60,
           },
@@ -277,8 +276,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: null,
             buffer_pending_total: 0,
           },
@@ -299,8 +296,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: thirtyMinutesAgo,
             buffer_pending_total: 0,
           },
@@ -774,8 +769,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 10,
           },
@@ -789,8 +782,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 11,
           },
@@ -804,8 +795,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 50,
           },
@@ -819,8 +808,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: new Date().toISOString(),
             buffer_pending_total: 51,
           },
@@ -850,8 +837,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: sevenHours,
             buffer_pending_total: 0,
           },
@@ -865,8 +850,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: sevenHoursPlusOne,
             buffer_pending_total: 0,
           },
@@ -880,8 +863,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: thirteenHours,
             buffer_pending_total: 0,
           },
@@ -895,8 +876,6 @@ describe("computeIndicators", () => {
         cortex: {
           ...makeFullStats().cortex!,
           receptors: {
-            calendar_last_sync_at: new Date().toISOString(),
-            calendar_buffer_pending: 0,
             thalamus_last_run_at: thirteenHoursPlusOne,
             buffer_pending_total: 0,
           },
@@ -929,15 +908,15 @@ describe("computeIndicators", () => {
       );
     });
 
-    test("handles null calendar_last_sync_at", () => {
+    test("handles null last_sync_at in channels (never synced)", () => {
       const stats = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          receptors: {
-            calendar_last_sync_at: null,
-            calendar_buffer_pending: 0,
-            thalamus_last_run_at: null,
-            buffer_pending_total: 0,
+        channels: {
+          calendar: {
+            last_sync_at: null,
+            last_post_at: null,
+            events_posted: 0,
+            status: "healthy",
+            error: null,
           },
         },
       });

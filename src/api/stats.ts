@@ -67,8 +67,6 @@ export interface CortexStats {
     dead_total: number;
   };
   receptors: {
-    calendar_last_sync_at: string | null;
-    calendar_buffer_pending: number;
     thalamus_last_run_at: string | null;
     buffer_pending_total: number;
   };
@@ -87,6 +85,16 @@ export interface HealthStatus {
   uptime_seconds?: number;
 }
 
+// --- Channel Stats (from Wilson channels) ---
+
+export interface ChannelStatsResponse {
+  last_sync_at: string | null;
+  last_post_at: string | null;
+  events_posted: number;
+  status: "healthy" | "degraded" | "error";
+  error: string | null;
+}
+
 // --- Service Stats Result ---
 
 export interface ServiceStats {
@@ -94,6 +102,7 @@ export interface ServiceStats {
   synapse: SynapseStats | null;
   cortex: CortexStats | null;
   health: Record<string, HealthStatus>;
+  channels?: Record<string, ChannelStatsResponse>;
 }
 
 // --- Fetch Functions ---

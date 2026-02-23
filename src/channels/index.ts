@@ -10,6 +10,21 @@ import { createLogger } from "@shetty4l/core/log";
 
 const log = createLogger("wilson:channels");
 
+// --- Channel stats ---
+
+export interface ChannelStats {
+  /** When the channel last synced with its external source. */
+  lastSyncAt: number | null;
+  /** When the channel last posted data to Cortex. */
+  lastPostAt: number | null;
+  /** Number of items posted in the last sync. */
+  eventsPosted: number;
+  /** Current channel health status. */
+  status: "healthy" | "degraded" | "error";
+  /** Last error message if status is error/degraded. */
+  error: string | null;
+}
+
 // --- Channel interface ---
 
 export interface Channel {
@@ -29,6 +44,8 @@ export interface Channel {
   stop(): Promise<void>;
   /** Trigger an immediate sync cycle (on-demand). */
   sync(): Promise<void>;
+  /** Get current channel stats. */
+  getStats(): ChannelStats;
 }
 
 // --- Channel registry ---
@@ -83,5 +100,14 @@ export class ChannelRegistry {
         log(`channel stop error (${ch.name}): ${e}`);
       }
     }
+  }
+
+  /** Get stats for all channels. */
+  getAllStats(): Record<string, ChannelStats> {
+    const stats: Record<string, ChannelStats> = {};
+    for (const ch of this.channels) {
+      stats[ch.name] = ch.getStats();
+    }
+    return stats;
   }
 }

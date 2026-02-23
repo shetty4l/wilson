@@ -30,50 +30,56 @@ function computeSensing(stats: ServiceStats): Indicator {
   const id = "sensing";
   const name = "Sensing";
 
-  // Service down or missing → green/Idle
-  if (!stats.cortex) {
+  // No channels data → Idle
+  const calendar = stats.channels?.calendar;
+  if (!calendar) {
     return {
       id,
       name,
       status: "green",
       label: "Idle",
-      detail: "Cortex offline",
+      detail: "No channels configured",
     };
   }
 
-  const receptors = stats.cortex.receptors;
-  const calendarHoursAgo = hoursAgo(receptors.calendar_last_sync_at);
-  const buffer = receptors.calendar_buffer_pending;
+  const syncHoursAgo = hoursAgo(calendar.last_sync_at);
+  const channelStatus = calendar.status;
+  const error = calendar.error;
 
-  // Red: sync > 6h OR buffer > 50
-  if (calendarHoursAgo > 6 || buffer > 50) {
+  // Red: status error OR sync > 6h OR never synced
+  if (channelStatus === "error" || syncHoursAgo > 6) {
+    const syncDetail =
+      syncHoursAgo === Number.POSITIVE_INFINITY
+        ? "never synced"
+        : `${Math.round(syncHoursAgo)}h ago`;
     return {
       id,
       name,
       status: "red",
       label: "Stale",
-      detail: `Last sync ${calendarHoursAgo === Number.POSITIVE_INFINITY ? "never" : `${Math.round(calendarHoursAgo)}h ago`}, ${buffer} buffered`,
+      detail: error || `Last sync ${syncDetail}`,
     };
   }
 
-  // Yellow: sync 1-6h OR buffer 10-50
-  if (calendarHoursAgo > 1 || buffer >= 10) {
+  // Yellow: status degraded OR sync 1-6h
+  if (channelStatus === "degraded" || syncHoursAgo > 1) {
     return {
       id,
       name,
       status: "yellow",
       label: "Delayed",
-      detail: `Last sync ${Math.round(calendarHoursAgo)}h ago, ${buffer} buffered`,
+      detail: error || `Last sync ${Math.round(syncHoursAgo)}h ago`,
     };
   }
 
-  // Green: sync < 1h AND buffer < 10
+  // Green: status healthy AND sync < 1h
+  const syncMinutes = Math.round(syncHoursAgo * 60);
   return {
     id,
     name,
     status: "green",
     label: "Active",
-    detail: `Last sync ${Math.round(calendarHoursAgo * 60)}m ago, ${buffer} buffered`,
+    detail: `Last sync ${syncMinutes}m ago, ${calendar.events_posted} events`,
   };
 }
 

@@ -1,3 +1,4 @@
+import type { ChannelRegistry, ChannelStats } from "../channels";
 import type { WilsonConfig } from "../config";
 import { fetchHealth, type HealthResponse } from "../health";
 import { getServices } from "../services";
@@ -64,6 +65,31 @@ async function fetchAllHealth(
   return results;
 }
 
+/** Format channel stats for API response (timestamps as ISO strings). */
+function formatChannelStats(
+  stats: Record<string, ChannelStats>,
+): Record<string, ChannelStatsResponse> {
+  const result: Record<string, ChannelStatsResponse> = {};
+  for (const [name, s] of Object.entries(stats)) {
+    result[name] = {
+      last_sync_at: s.lastSyncAt ? new Date(s.lastSyncAt).toISOString() : null,
+      last_post_at: s.lastPostAt ? new Date(s.lastPostAt).toISOString() : null,
+      events_posted: s.eventsPosted,
+      status: s.status,
+      error: s.error,
+    };
+  }
+  return result;
+}
+
+interface ChannelStatsResponse {
+  last_sync_at: string | null;
+  last_post_at: string | null;
+  events_posted: number;
+  status: "healthy" | "degraded" | "error";
+  error: string | null;
+}
+
 /**
  * Handle API requests for /api/* paths.
  * Returns null for non-matching paths (404).
@@ -72,6 +98,7 @@ export async function handleApiRequest(
   req: Request,
   url: URL,
   config: WilsonConfig,
+  registry: ChannelRegistry,
 ): Promise<Response | null> {
   const path = url.pathname;
   const method = req.method;
@@ -79,13 +106,15 @@ export async function handleApiRequest(
   // GET /api/stats
   if (path === "/api/stats" && method === "GET") {
     const stats = await fetchAllStats(config);
-    return Response.json(stats);
+    const channels = formatChannelStats(registry.getAllStats());
+    return Response.json({ ...stats, channels });
   }
 
   // GET /api/indicators
   if (path === "/api/indicators" && method === "GET") {
     const stats = await fetchAllStats(config);
-    const indicators = computeIndicators(stats);
+    const channels = formatChannelStats(registry.getAllStats());
+    const indicators = computeIndicators({ ...stats, channels });
     return Response.json(indicators);
   }
 
