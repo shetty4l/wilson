@@ -107,6 +107,7 @@ export async function cmdServe(): Promise<void> {
         pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
         lookAheadDays: config.channels.calendar.lookAheadDays,
         extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
+        includeCalendars: config.channels.calendar.includeCalendars,
       },
       stateLoader,
     );
