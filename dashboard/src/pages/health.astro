@@ -32,17 +32,9 @@ try {
       <h2 class="font-heading font-semibold text-lg text-text">
         Service Health
       </h2>
-      <div class="flex items-center gap-3">
-        <span
-          id="refresh-indicator"
-          class="font-mono text-xs text-text-muted hidden"
-        >
-          Refreshing...
-        </span>
-        <span id="last-update" class="font-mono text-xs text-text-muted">
-          —
-        </span>
-      </div>
+      <span id="last-update" class="font-mono text-xs text-text-muted">
+        —
+      </span>
     </div>
 
     <!-- Error State -->
@@ -184,9 +176,6 @@ try {
 
   // Fetch health data
   async function fetchHealth(): Promise<ServiceHealth[] | null> {
-    const indicator = document.getElementById("refresh-indicator");
-    if (indicator) indicator.classList.remove("hidden");
-
     try {
       const res = await fetch("/api/health");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -201,8 +190,6 @@ try {
     } catch (e) {
       console.error("Failed to fetch health:", e);
       return null;
-    } finally {
-      if (indicator) indicator.classList.add("hidden");
     }
   }
 
