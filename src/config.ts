@@ -8,6 +8,7 @@ export interface CalendarChannelConfig {
   pollIntervalSeconds: number;
   lookAheadDays: number;
   extendedLookAheadDays: number;
+  includeCalendars?: string[];
 }
 
 export interface CortexConfig {
