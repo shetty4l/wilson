@@ -375,4 +375,65 @@ describe("CalendarChannel", () => {
       expect(stats1).toEqual(stats2); // Same values
     });
   });
+
+  describe("includeCalendars filtering", () => {
+    test("passes includeCalendars to readAppleCalendar", async () => {
+      const cortex = makeMockCortex();
+      let capturedOptions: {
+        lookAheadDays: number;
+        includeCalendars?: string[];
+      } | null = null;
+
+      // Custom spawn that captures the script to verify filtering
+      const spawn = async (cmd: string[]) => {
+        // Parse the options from the script if needed, but simpler to check the script content
+        const script = cmd[4];
+        if (script.includes('["work","home"]')) {
+          capturedOptions = {
+            lookAheadDays: 30,
+            includeCalendars: ["work", "home"],
+          };
+        }
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(SAMPLE_EVENTS),
+          stderr: "",
+        };
+      };
+
+      const configWithFilter = {
+        ...DEFAULT_CONFIG,
+        includeCalendars: ["Work", "Home"],
+      };
+
+      channel = new CalendarChannel(cortex, configWithFilter, spawn);
+      await channel.start();
+
+      // The script should contain the filter
+      expect(capturedOptions).not.toBeNull();
+    });
+
+    test("syncs without filter when includeCalendars is undefined", async () => {
+      const cortex = makeMockCortex();
+      let scriptContainsNoFilter = false;
+
+      const spawn = async (cmd: string[]) => {
+        const script = cmd[4];
+        // When no filter, shouldInclude always returns true
+        if (script.includes("shouldInclude(calName) { return true; }")) {
+          scriptContainsNoFilter = true;
+        }
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(SAMPLE_EVENTS),
+          stderr: "",
+        };
+      };
+
+      channel = new CalendarChannel(cortex, DEFAULT_CONFIG, spawn);
+      await channel.start();
+
+      expect(scriptContainsNoFilter).toBe(true);
+    });
+  });
 });
