@@ -1,6 +1,7 @@
 import { createServer, type HttpServer } from "@shetty4l/core/http";
 import { createLogger } from "@shetty4l/core/log";
 import { onShutdown } from "@shetty4l/core/signals";
+import { StateLoader } from "@shetty4l/core/state";
 import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { handleApiRequest } from "./api";
@@ -8,6 +9,7 @@ import { CalendarChannel } from "./channels/calendar/index";
 import { CortexClient } from "./channels/cortex-client";
 import { ChannelRegistry } from "./channels/index";
 import { loadConfig } from "./config";
+import { dbManager } from "./db";
 import { VERSION } from "./version";
 
 // Dashboard static files location (relative to project root)
@@ -90,16 +92,24 @@ export async function cmdServe(): Promise<void> {
 
   const config = configResult.value;
 
+  // --- Database ---
+  dbManager.init();
+  const stateLoader = new StateLoader(dbManager.db());
+
   // --- Channels (init before server so registry is available for API) ---
   const cortex = new CortexClient(config.cortex.url, config.cortex.apiKey);
   const registry = new ChannelRegistry();
 
   if (config.channels.calendar.enabled) {
-    const calendar = new CalendarChannel(cortex, {
-      pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
-      lookAheadDays: config.channels.calendar.lookAheadDays,
-      extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
-    });
+    const calendar = new CalendarChannel(
+      cortex,
+      {
+        pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
+        lookAheadDays: config.channels.calendar.lookAheadDays,
+        extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
+      },
+      stateLoader,
+    );
     registry.register(calendar);
   }
 
@@ -143,6 +153,8 @@ export async function cmdServe(): Promise<void> {
     async () => {
       log("shutting down...");
       await registry.stopAll();
+      await stateLoader.flush();
+      dbManager.close();
       server.stop();
       log("stopped");
     },
