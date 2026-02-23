@@ -11,7 +11,7 @@
 import { createLogger } from "@shetty4l/core/log";
 import { createHash } from "crypto";
 import type { CortexClient } from "../cortex-client";
-import type { Channel } from "../index";
+import type { Channel, ChannelStats } from "../index";
 import { readAppleCalendar, type SpawnFn } from "./apple-calendar";
 
 const log = createLogger("wilson:calendar");
@@ -38,6 +38,15 @@ export class CalendarChannel implements Channel {
   private lastHash: string | null = null;
   private lastExtendedSyncDate: string | null = null; // "YYYY-MM-DD"
   private spawnFn: SpawnFn | undefined;
+
+  // Stats tracking
+  private stats: ChannelStats = {
+    lastSyncAt: null,
+    lastPostAt: null,
+    eventsPosted: 0,
+    status: "healthy",
+    error: null,
+  };
 
   constructor(
     private cortex: CortexClient,
@@ -70,6 +79,10 @@ export class CalendarChannel implements Channel {
     log("calendar channel stopped");
   }
 
+  getStats(): ChannelStats {
+    return { ...this.stats };
+  }
+
   async sync(): Promise<void> {
     if (!this.running) return;
 
@@ -88,6 +101,11 @@ export class CalendarChannel implements Channel {
       // Read events
       const events = await readAppleCalendar(windowDays, this.spawnFn);
 
+      // Update lastSyncAt - we successfully read from Apple Calendar
+      this.stats.lastSyncAt = Date.now();
+      this.stats.status = "healthy";
+      this.stats.error = null;
+
       // Sort for stable hashing
       const sorted = [...events].sort(
         (a, b) =>
@@ -103,6 +121,7 @@ export class CalendarChannel implements Channel {
         log(
           `sync: no changes (${sorted.length} events, ${windowDays}d window)`,
         );
+        this.stats.eventsPosted = 0;
         return;
       }
 
@@ -121,11 +140,18 @@ export class CalendarChannel implements Channel {
         log(
           `sync: posted ${sorted.length} events (${windowDays}d window, status: ${result.value.status})`,
         );
+        this.stats.lastPostAt = Date.now();
+        this.stats.eventsPosted = sorted.length;
       } else {
         log(`sync: cortex error: ${result.error}`);
+        this.stats.status = "degraded";
+        this.stats.error = `Cortex error: ${result.error}`;
       }
     } catch (e) {
-      log(`sync error: ${e instanceof Error ? e.message : String(e)}`);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      log(`sync error: ${errorMsg}`);
+      this.stats.status = "error";
+      this.stats.error = errorMsg;
     }
   }
 

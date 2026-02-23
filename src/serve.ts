@@ -90,6 +90,19 @@ export async function cmdServe(): Promise<void> {
 
   const config = configResult.value;
 
+  // --- Channels (init before server so registry is available for API) ---
+  const cortex = new CortexClient(config.cortex.url, config.cortex.apiKey);
+  const registry = new ChannelRegistry();
+
+  if (config.channels.calendar.enabled) {
+    const calendar = new CalendarChannel(cortex, {
+      pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
+      lookAheadDays: config.channels.calendar.lookAheadDays,
+      extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
+    });
+    registry.register(calendar);
+  }
+
   // --- HTTP server ---
   const server: HttpServer = createServer({
     name: "wilson",
@@ -107,7 +120,7 @@ export async function cmdServe(): Promise<void> {
 
       // Handle /api/* routes
       if (url.pathname.startsWith("/api/")) {
-        return handleApiRequest(req, url, config);
+        return handleApiRequest(req, url, config, registry);
       }
 
       // Serve dashboard static files for /dashboard/*
@@ -122,19 +135,7 @@ export async function cmdServe(): Promise<void> {
 
   log(`server started on ${config.host}:${server.port} (v${VERSION})`);
 
-  // --- Channels ---
-  const cortex = new CortexClient(config.cortex.url, config.cortex.apiKey);
-  const registry = new ChannelRegistry();
-
-  if (config.channels.calendar.enabled) {
-    const calendar = new CalendarChannel(cortex, {
-      pollIntervalSeconds: config.channels.calendar.pollIntervalSeconds,
-      lookAheadDays: config.channels.calendar.lookAheadDays,
-      extendedLookAheadDays: config.channels.calendar.extendedLookAheadDays,
-    });
-    registry.register(calendar);
-  }
-
+  // --- Start channels ---
   await registry.startAll();
 
   // --- Shutdown ---

@@ -1,29 +1,5 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import ServiceHealthRow from "../components/ServiceHealthRow.astro";
-
-interface ServiceHealth {
-  name: string;
-  port: number;
-  status: "running" | "stopped";
-  version: string | null;
-  healthy: boolean;
-}
-
-// Fetch initial health data at build/SSR time
-let services: ServiceHealth[] = [];
-let fetchError: string | null = null;
-
-try {
-  const res = await fetch("http://localhost:7748/api/health");
-  if (res.ok) {
-    services = await res.json();
-  } else {
-    fetchError = `Failed to fetch health data (${res.status})`;
-  }
-} catch (e) {
-  fetchError = "Unable to connect to Wilson API";
-}
 ---
 
 <Layout title="Health | Wilson Dashboard" currentPage="health">
@@ -37,47 +13,40 @@ try {
       </span>
     </div>
 
-    <!-- Error State -->
-    {
-      fetchError && (
-        <div
-          id="error-container"
-          class="indicator-card bracket-corners border-red-nerv/50"
-        >
-          <div class="flex items-center gap-3 py-2">
-            <div class="status-dot status-dot-red" />
-            <div>
-              <p class="font-mono text-sm text-red-nerv">{fetchError}</p>
-              <p class="font-mono text-xs text-text-muted mt-1">
-                Auto-retrying every 30s...
-              </p>
-            </div>
-          </div>
+    <!-- Error State (hidden by default) -->
+    <div
+      id="error-container"
+      class="indicator-card bracket-corners border-red-nerv/50 hidden"
+    >
+      <div class="flex items-center gap-3 py-2">
+        <div class="status-dot status-dot-red"></div>
+        <div>
+          <p id="error-message" class="font-mono text-sm text-red-nerv"></p>
+          <p class="font-mono text-xs text-text-muted mt-1">
+            Auto-retrying every 30s...
+          </p>
         </div>
-      )
-    }
+      </div>
+    </div>
 
-    <!-- Services List -->
+    <!-- Services List (skeleton loader initially) -->
     <div id="services-container" class="space-y-3">
+      <!-- Skeleton rows for 4 services -->
       {
-        services.length > 0 ? (
-          services.map((svc) => (
-            <ServiceHealthRow
-              name={svc.name}
-              version={svc.version}
-              status={svc.status}
-              port={svc.port}
-            />
-          ))
-        ) : !fetchError ? (
-          <div class="indicator-card bracket-corners">
-            <div class="flex items-center justify-center py-8">
-              <p class="font-mono text-sm text-text-muted">
-                Loading services...
-              </p>
+        [1, 2, 3, 4].map(() => (
+          <div class="indicator-card bracket-corners flex items-center justify-between gap-4 py-3">
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="skeleton-pulse w-3 h-3 rounded-full flex-shrink-0" />
+              <div class="min-w-0">
+                <div class="skeleton-pulse h-5 w-20 rounded mb-1" />
+                <div class="skeleton-pulse h-3 w-16 rounded" />
+              </div>
             </div>
+            <div class="skeleton-pulse h-4 w-14 rounded" />
+            <div class="skeleton-pulse h-4 w-16 rounded hidden md:block" />
+            <div class="skeleton-pulse h-7 w-16 rounded" />
           </div>
-        ) : null
+        ))
       }
     </div>
 
@@ -92,12 +61,55 @@ try {
   </div>
 </Layout>
 
+<style>
+  .skeleton-pulse {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 191, 0, 0.1) 25%,
+      rgba(255, 191, 0, 0.2) 50%,
+      rgba(255, 191, 0, 0.1) 75%
+    );
+    background-size: 200% 100%;
+    animation: pulse-sweep 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse-sweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  .action-btn.confirming {
+    background-color: rgba(255, 191, 0, 0.2);
+    animation: pulse 1s infinite;
+  }
+
+  .action-btn.loading {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+</style>
+
 <script>
   interface ServiceHealth {
     name: string;
     port: number;
     status: "running" | "stopped";
     version: string | null;
+    latestVersion: string | null;
     healthy: boolean;
   }
 
@@ -182,13 +194,23 @@ try {
       const data = await res.json();
       updateLastRefresh();
 
-      // Hide error container if it exists
+      // Hide error container
       const errorContainer = document.getElementById("error-container");
       if (errorContainer) errorContainer.classList.add("hidden");
 
       return data;
     } catch (e) {
       console.error("Failed to fetch health:", e);
+
+      // Show error
+      const errorContainer = document.getElementById("error-container");
+      const errorMessage = document.getElementById("error-message");
+      if (errorContainer && errorMessage) {
+        errorMessage.textContent =
+          e instanceof Error ? e.message : "Failed to fetch health";
+        errorContainer.classList.remove("hidden");
+      }
+
       return null;
     }
   }
@@ -299,33 +321,14 @@ try {
   }
 
   // Initialize
-  document.addEventListener("DOMContentLoaded", () => {
-    updateLastRefresh();
-    attachButtonListeners();
+  document.addEventListener("DOMContentLoaded", async () => {
+    // Fetch data immediately on page load
+    const data = await fetchHealth();
+    if (data) {
+      renderServices(data);
+    }
 
     // Auto-refresh every 30s
     setInterval(refreshHealth, 30000);
   });
 </script>
-
-<style>
-  .action-btn.confirming {
-    background-color: rgba(255, 191, 0, 0.2);
-    animation: pulse 1s infinite;
-  }
-
-  .action-btn.loading {
-    opacity: 0.5;
-    cursor: wait;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
-    }
-  }
-</style>

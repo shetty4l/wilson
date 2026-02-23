@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { type Channel, ChannelRegistry } from "../src/channels/index";
+import {
+  type Channel,
+  ChannelRegistry,
+  type ChannelStats,
+} from "../src/channels/index";
 
 /** Create a minimal test channel that records lifecycle calls. */
 function makeChannel(name: string, calls: string[]): Channel {
@@ -17,6 +21,15 @@ function makeChannel(name: string, calls: string[]): Channel {
     },
     async sync() {
       calls.push(`sync:${name}`);
+    },
+    getStats(): ChannelStats {
+      return {
+        lastSyncAt: null,
+        lastPostAt: null,
+        eventsPosted: 0,
+        status: "healthy",
+        error: null,
+      };
     },
   };
 }

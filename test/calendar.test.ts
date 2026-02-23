@@ -258,4 +258,121 @@ describe("CalendarChannel", () => {
     };
     expect(data.events).toEqual([]);
   });
+
+  describe("stats tracking", () => {
+    test("getStats() returns initial state before sync", () => {
+      const cortex = makeMockCortex();
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      const stats = channel.getStats();
+      expect(stats.lastSyncAt).toBeNull();
+      expect(stats.lastPostAt).toBeNull();
+      expect(stats.eventsPosted).toBe(0);
+      expect(stats.status).toBe("healthy");
+      expect(stats.error).toBeNull();
+    });
+
+    test("getStats() updates after successful sync", async () => {
+      const cortex = makeMockCortex();
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      await channel.start();
+
+      const stats = channel.getStats();
+      expect(stats.lastSyncAt).toBeGreaterThan(0);
+      expect(stats.lastPostAt).toBeGreaterThan(0);
+      expect(stats.eventsPosted).toBe(2);
+      expect(stats.status).toBe("healthy");
+      expect(stats.error).toBeNull();
+    });
+
+    test("getStats() sets eventsPosted to 0 when hash unchanged", async () => {
+      const cortex = makeMockCortex();
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      await channel.start();
+      const statsAfterFirst = channel.getStats();
+      expect(statsAfterFirst.eventsPosted).toBe(2);
+
+      // Sync again with same events (hash unchanged → skip post)
+      await channel.sync();
+
+      const statsAfterSecond = channel.getStats();
+      expect(statsAfterSecond.eventsPosted).toBe(0);
+      expect(statsAfterSecond.status).toBe("healthy");
+    });
+
+    test("getStats() sets error status on cortex failure", async () => {
+      const calls: ReceivePayload[] = [];
+      const failingCortex = {
+        calls,
+        receive: async (payload: ReceivePayload) => {
+          calls.push(payload);
+          return { ok: false, error: "Cortex unavailable" } as const;
+        },
+        pollOutbox: async () => ok([] as never[]),
+        ackOutbox: async () => ok(undefined),
+      } as unknown as CortexClient & { calls: ReceivePayload[] };
+
+      channel = new CalendarChannel(
+        failingCortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      await channel.start();
+
+      const stats = channel.getStats();
+      expect(stats.lastSyncAt).toBeGreaterThan(0); // Sync happened
+      expect(stats.lastPostAt).toBeNull(); // Post failed
+      expect(stats.status).toBe("degraded");
+      expect(stats.error).toContain("Cortex");
+    });
+
+    test("getStats() remains healthy when osascript returns empty (graceful fallback)", async () => {
+      const cortex = makeMockCortex();
+      // Spawn that throws — readAppleCalendar catches it and returns []
+      const errorSpawn = async () => {
+        throw new Error("spawn failed");
+      };
+
+      channel = new CalendarChannel(cortex, DEFAULT_CONFIG, errorSpawn);
+
+      await channel.start();
+
+      // readAppleCalendar catches the error and returns [] — sync proceeds normally
+      const stats = channel.getStats();
+      expect(stats.status).toBe("healthy"); // graceful degradation
+      expect(stats.lastSyncAt).toBeGreaterThan(0);
+      expect(stats.eventsPosted).toBe(0); // empty events
+    });
+
+    test("getStats() returns a copy (immutable)", async () => {
+      const cortex = makeMockCortex();
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      await channel.start();
+
+      const stats1 = channel.getStats();
+      const stats2 = channel.getStats();
+      expect(stats1).not.toBe(stats2); // Different objects
+      expect(stats1).toEqual(stats2); // Same values
+    });
+  });
 });

@@ -1,41 +1,18 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import StatsPanel from "../components/StatsPanel.astro";
 
-interface ServiceStats {
-  engram: unknown;
-  synapse: unknown;
-  cortex: unknown;
-  health: Record<string, unknown>;
-}
-
-// Get tab from URL query param (default to "overview")
+// Get tab from URL query param (default to "engram")
 const url = new URL(Astro.request.url);
-const tab = url.searchParams.get("tab") || "overview";
-const validTabs = ["overview", "engram", "synapse", "cortex"];
-const currentTab = validTabs.includes(tab) ? tab : "overview";
+const tab = url.searchParams.get("tab") || "engram";
+const validTabs = ["engram", "synapse", "cortex", "wilson"];
+const currentTab = validTabs.includes(tab) ? tab : "engram";
 
 const tabs = [
-  { id: "overview", label: "Overview" },
   { id: "engram", label: "Engram" },
   { id: "synapse", label: "Synapse" },
   { id: "cortex", label: "Cortex" },
+  { id: "wilson", label: "Wilson" },
 ] as const;
-
-// Fetch initial stats data at build/SSR time
-let stats: ServiceStats | null = null;
-let fetchError: string | null = null;
-
-try {
-  const res = await fetch("http://localhost:7748/api/stats");
-  if (res.ok) {
-    stats = await res.json();
-  } else {
-    fetchError = `Failed to fetch stats (${res.status})`;
-  }
-} catch (e) {
-  fetchError = "Unable to connect to Wilson API";
-}
 ---
 
 <Layout title="Stats | Wilson Dashboard" currentPage="stats">
@@ -75,73 +52,118 @@ try {
       </div>
     </div>
 
-    <!-- Error State -->
-    {
-      fetchError && (
-        <div
-          id="error-container"
-          class="indicator-card bracket-corners border-red-nerv/50"
-        >
-          <div class="flex items-center gap-3 py-2">
-            <div class="status-dot status-dot-red" />
+    <!-- Error State (hidden by default) -->
+    <div
+      id="error-container"
+      class="indicator-card bracket-corners border-red-nerv/50 hidden"
+    >
+      <div class="flex items-center gap-3 py-2">
+        <div class="status-dot status-dot-red"></div>
+        <div>
+          <p id="error-message" class="font-mono text-sm text-red-nerv"></p>
+          <p class="font-mono text-xs text-text-muted mt-1">
+            Auto-retrying every 60s...
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Content (skeleton loader initially) -->
+    <div id="stats-container">
+      <div class="max-w-xl">
+        <div class="indicator-card bracket-corners">
+          <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+            <div class="skeleton-pulse w-3 h-3 rounded-full"></div>
+            <div class="skeleton-pulse h-5 w-24 rounded"></div>
+          </div>
+          <div class="space-y-4">
             <div>
-              <p class="font-mono text-sm text-red-nerv">{fetchError}</p>
-              <p class="font-mono text-xs text-text-muted mt-1">
-                Auto-retrying every 60s...
-              </p>
+              <div class="skeleton-pulse h-3 w-16 rounded mb-2"></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <div class="skeleton-pulse h-7 w-12 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-10 rounded"></div>
+                </div>
+                <div>
+                  <div class="skeleton-pulse h-7 w-12 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-16 rounded"></div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="skeleton-pulse h-3 w-24 rounded mb-2"></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <div class="skeleton-pulse h-7 w-10 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-12 rounded"></div>
+                </div>
+                <div>
+                  <div class="skeleton-pulse h-7 w-10 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-14 rounded"></div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="skeleton-pulse h-3 w-20 rounded mb-2"></div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <div class="skeleton-pulse h-5 w-12 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-6 rounded"></div>
+                </div>
+                <div>
+                  <div class="skeleton-pulse h-5 w-12 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-6 rounded"></div>
+                </div>
+                <div>
+                  <div class="skeleton-pulse h-5 w-12 rounded mb-1"></div>
+                  <div class="skeleton-pulse h-3 w-6 rounded"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )
-    }
-
-    <!-- Stats Content -->
-    <div id="stats-container">
-      {
-        stats ? (
-          currentTab === "overview" ? (
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div data-panel="engram">
-                <StatsPanel serviceName="engram" stats={stats.engram} />
-              </div>
-              <div data-panel="synapse">
-                <StatsPanel serviceName="synapse" stats={stats.synapse} />
-              </div>
-              <div data-panel="cortex">
-                <StatsPanel serviceName="cortex" stats={stats.cortex} />
-              </div>
-            </div>
-          ) : currentTab === "engram" ? (
-            <div class="max-w-xl" data-panel="engram">
-              <StatsPanel serviceName="engram" stats={stats.engram} />
-            </div>
-          ) : currentTab === "synapse" ? (
-            <div class="max-w-xl" data-panel="synapse">
-              <StatsPanel serviceName="synapse" stats={stats.synapse} />
-            </div>
-          ) : currentTab === "cortex" ? (
-            <div class="max-w-xl" data-panel="cortex">
-              <StatsPanel serviceName="cortex" stats={stats.cortex} />
-            </div>
-          ) : null
-        ) : !fetchError ? (
-          <div class="indicator-card bracket-corners">
-            <div class="flex items-center justify-center py-8">
-              <p class="font-mono text-sm text-text-muted">Loading stats...</p>
-            </div>
-          </div>
-        ) : null
-      }
+      </div>
     </div>
   </div>
 </Layout>
 
+<style>
+  .skeleton-pulse {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 191, 0, 0.1) 25%,
+      rgba(255, 191, 0, 0.2) 50%,
+      rgba(255, 191, 0, 0.1) 75%
+    );
+    background-size: 200% 100%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+</style>
+
 <script>
+  interface ChannelStats {
+    last_sync_at: string | null;
+    last_post_at: string | null;
+    events_posted: number;
+    status: "healthy" | "degraded" | "error";
+    error: string | null;
+  }
+
   interface ServiceStats {
     engram: unknown;
     synapse: unknown;
     cortex: unknown;
     health: Record<string, unknown>;
+    channels?: Record<string, ChannelStats>;
   }
 
   // Update last refresh time
@@ -161,17 +183,64 @@ try {
   // Get current tab from URL
   function getCurrentTab(): string {
     const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab") || "overview";
-    const validTabs = ["overview", "engram", "synapse", "cortex"];
-    return validTabs.includes(tab) ? tab : "overview";
+    const tab = params.get("tab") || "engram";
+    const validTabs = ["engram", "synapse", "cortex", "wilson"];
+    return validTabs.includes(tab) ? tab : "engram";
   }
 
+  // Format helpers
+  const formatNumber = (n: number | undefined | null): string => {
+    if (n === undefined || n === null) return "—";
+    if (Number.isInteger(n)) return n.toLocaleString();
+    return n.toFixed(1);
+  };
+
+  const formatPercent = (n: number | undefined | null): string => {
+    if (n === undefined || n === null) return "—";
+    return `${n.toFixed(1)}%`;
+  };
+
+  const formatMs = (n: number | undefined | null): string => {
+    if (n === undefined || n === null) return "—";
+    if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
+    return `${n.toFixed(0)}ms`;
+  };
+
+  const formatTime = (ts: string | number | null | undefined): string => {
+    if (!ts) return "—";
+    try {
+      const date = typeof ts === "number" ? new Date(ts) : new Date(ts);
+      return date.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } catch {
+      return String(ts);
+    }
+  };
+
+  const formatTimeAgo = (ts: string | null | undefined): string => {
+    if (!ts) return "never";
+    try {
+      const date = new Date(ts);
+      const now = Date.now();
+      const diffMs = now - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${Math.floor(diffHours / 24)}d ago`;
+    } catch {
+      return "—";
+    }
+  };
+
   // Render stats for a single service
-  function renderServiceStats(
-    serviceName: string,
-    stats: unknown,
-  ): string {
-    if (!stats) {
+  function renderServiceStats(serviceName: string, stats: unknown): string {
+    if (!stats && serviceName !== "wilson") {
       return `
         <div class="indicator-card bracket-corners" data-service="${serviceName}">
           <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
@@ -187,38 +256,6 @@ try {
 
     const displayName =
       serviceName.charAt(0).toUpperCase() + serviceName.slice(1);
-
-    const formatNumber = (n: number | undefined | null): string => {
-      if (n === undefined || n === null) return "—";
-      if (Number.isInteger(n)) return n.toLocaleString();
-      return n.toFixed(1);
-    };
-
-    const formatPercent = (n: number | undefined | null): string => {
-      if (n === undefined || n === null) return "—";
-      return `${n.toFixed(1)}%`;
-    };
-
-    const formatMs = (n: number | undefined | null): string => {
-      if (n === undefined || n === null) return "—";
-      if (n >= 1000) return `${(n / 1000).toFixed(2)}s`;
-      return `${n.toFixed(0)}ms`;
-    };
-
-    const formatTime = (ts: string | null | undefined): string => {
-      if (!ts) return "—";
-      try {
-        const date = new Date(ts);
-        return date.toLocaleTimeString("en-US", {
-          hour12: false,
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      } catch {
-        return ts;
-      }
-    };
 
     // Type guards
     const s = stats as Record<string, unknown>;
@@ -268,11 +305,11 @@ try {
                 <div class="font-mono text-xs text-text-muted">Remembers</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_hit_rate_24h)}</div>
+                <div class="font-mono text-lg text-text">${formatPercent((operations?.recall_hit_rate_24h ?? 0) * 100)}</div>
                 <div class="font-mono text-xs text-text-muted">Hit Rate</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-text">${formatPercent(operations?.recall_fallback_rate_24h)}</div>
+                <div class="font-mono text-lg text-text">${formatPercent((operations?.recall_fallback_rate_24h ?? 0) * 100)}</div>
                 <div class="font-mono text-xs text-text-muted">Fallback Rate</div>
               </div>
             </div>
@@ -409,9 +446,8 @@ try {
         | undefined;
       const receptors = s.receptors as
         | {
-            calendar_last_sync_at: string | null;
-            calendar_buffer_pending: number;
             thalamus_last_run_at: string | null;
+            buffer_pending_total: number;
           }
         | undefined;
       const processing = s.processing as
@@ -459,19 +495,15 @@ try {
             </div>
           </div>
           <div>
-            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Receptors</div>
+            <div class="font-mono text-xs text-text-muted uppercase tracking-wider mb-2">Thalamus</div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <div class="font-mono text-sm text-text">${formatTime(receptors?.calendar_last_sync_at)}</div>
-                <div class="font-mono text-xs text-text-muted">Calendar Sync</div>
+                <div class="font-mono text-sm text-text">${formatTimeAgo(receptors?.thalamus_last_run_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Last Run</div>
               </div>
               <div>
-                <div class="font-mono text-lg text-amber-nerv">${formatNumber(receptors?.calendar_buffer_pending)}</div>
-                <div class="font-mono text-xs text-text-muted">Buffer Pending</div>
-              </div>
-              <div class="col-span-2">
-                <div class="font-mono text-sm text-text">${formatTime(receptors?.thalamus_last_run_at)}</div>
-                <div class="font-mono text-xs text-text-muted">Thalamus Run</div>
+                <div class="font-mono text-lg text-amber-nerv">${formatNumber(receptors?.buffer_pending_total)}</div>
+                <div class="font-mono text-xs text-text-muted">Buffers Pending</div>
               </div>
             </div>
           </div>
@@ -507,31 +539,86 @@ try {
     `;
   }
 
+  // Render Wilson channel stats
+  function renderWilsonStats(channels: Record<string, ChannelStats> | undefined): string {
+    if (!channels || Object.keys(channels).length === 0) {
+      return `
+        <div class="indicator-card bracket-corners" data-service="wilson">
+          <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+            <div class="status-dot status-dot-yellow flex-shrink-0"></div>
+            <h3 class="font-heading font-semibold text-text">Wilson</h3>
+          </div>
+          <div class="py-6 text-center">
+            <p class="font-mono text-sm text-text-muted">No channels configured</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const channelEntries = Object.entries(channels);
+    const channelsHtml = channelEntries
+      .map(([name, ch]) => {
+        const statusDot =
+          ch.status === "healthy"
+            ? "bg-green-nerv"
+            : ch.status === "degraded"
+              ? "bg-amber-nerv"
+              : "bg-red-nerv";
+
+        return `
+          <div class="p-3 bg-nerv-bg/50 rounded border border-nerv-border">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full ${statusDot}"></div>
+                <span class="font-mono text-sm text-text font-semibold">${name}</span>
+              </div>
+              <span class="font-mono text-xs text-text-muted">${ch.status}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="font-mono text-sm text-text">${formatTimeAgo(ch.last_sync_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Last Sync</div>
+              </div>
+              <div>
+                <div class="font-mono text-sm text-text">${formatTimeAgo(ch.last_post_at)}</div>
+                <div class="font-mono text-xs text-text-muted">Last Post</div>
+              </div>
+              <div>
+                <div class="font-mono text-lg text-amber-nerv">${ch.events_posted}</div>
+                <div class="font-mono text-xs text-text-muted">Events Posted</div>
+              </div>
+              ${ch.error ? `<div class="col-span-2"><div class="font-mono text-xs text-red-nerv truncate" title="${ch.error}">${ch.error}</div></div>` : ""}
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <div class="indicator-card bracket-corners" data-service="wilson">
+        <div class="flex items-center gap-2 mb-4 pb-2 border-b border-nerv-border">
+          <div class="status-dot status-dot-green flex-shrink-0"></div>
+          <h3 class="font-heading font-semibold text-text">Wilson</h3>
+        </div>
+        <div class="space-y-3">
+          <div class="font-mono text-xs text-text-muted uppercase tracking-wider">Channels</div>
+          ${channelsHtml}
+        </div>
+      </div>
+    `;
+  }
+
   // Render stats based on current tab
   function renderStats(stats: ServiceStats | null, tab: string) {
     const container = document.getElementById("stats-container");
     if (!container) return;
 
     if (!stats) {
-      container.innerHTML = `
-        <div class="indicator-card bracket-corners">
-          <div class="flex items-center justify-center py-8">
-            <p class="font-mono text-sm text-text-muted">Loading stats...</p>
-          </div>
-        </div>
-      `;
+      // Keep showing skeleton
       return;
     }
 
-    if (tab === "overview") {
-      container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div data-panel="engram">${renderServiceStats("engram", stats.engram)}</div>
-          <div data-panel="synapse">${renderServiceStats("synapse", stats.synapse)}</div>
-          <div data-panel="cortex">${renderServiceStats("cortex", stats.cortex)}</div>
-        </div>
-      `;
-    } else if (tab === "engram") {
+    if (tab === "engram") {
       container.innerHTML = `
         <div class="max-w-xl" data-panel="engram">${renderServiceStats("engram", stats.engram)}</div>
       `;
@@ -542,6 +629,10 @@ try {
     } else if (tab === "cortex") {
       container.innerHTML = `
         <div class="max-w-xl" data-panel="cortex">${renderServiceStats("cortex", stats.cortex)}</div>
+      `;
+    } else if (tab === "wilson") {
+      container.innerHTML = `
+        <div class="max-w-xl" data-panel="wilson">${renderWilsonStats(stats.channels)}</div>
       `;
     }
   }
@@ -554,13 +645,22 @@ try {
       const data = await res.json();
       updateLastRefresh();
 
-      // Hide error container if it exists
+      // Hide error container
       const errorContainer = document.getElementById("error-container");
       if (errorContainer) errorContainer.classList.add("hidden");
 
       return data;
     } catch (e) {
       console.error("Failed to fetch stats:", e);
+
+      // Show error
+      const errorContainer = document.getElementById("error-container");
+      const errorMessage = document.getElementById("error-message");
+      if (errorContainer && errorMessage) {
+        errorMessage.textContent = e instanceof Error ? e.message : "Failed to fetch stats";
+        errorContainer.classList.remove("hidden");
+      }
+
       return null;
     }
   }
@@ -635,9 +735,14 @@ try {
   }
 
   // Initialize
-  document.addEventListener("DOMContentLoaded", () => {
-    updateLastRefresh();
+  document.addEventListener("DOMContentLoaded", async () => {
     setupTabNavigation();
+
+    // Fetch data immediately on page load
+    const data = await fetchStats();
+    if (data) {
+      renderStats(data, getCurrentTab());
+    }
 
     // Auto-refresh every 60s
     setInterval(refreshStats, 60000);
