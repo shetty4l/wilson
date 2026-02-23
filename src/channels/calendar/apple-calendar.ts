@@ -56,6 +56,8 @@ JSON.stringify(results);
 
 // --- Spawn type for dependency injection ---
 
+const SPAWN_TIMEOUT_MS = 30_000; // 30 seconds
+
 export type SpawnFn = (
   cmd: string[],
 ) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
@@ -65,12 +67,29 @@ const defaultSpawn: SpawnFn = async (cmd) => {
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  const exitCode = await proc.exited;
-  return { exitCode, stdout, stderr };
+
+  const outputPromise = (async () => {
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    const exitCode = await proc.exited;
+    return { exitCode, stdout, stderr };
+  })();
+
+  const timeoutPromise = new Promise<{
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }>((resolve) => {
+    setTimeout(() => {
+      proc.kill();
+      log("osascript timed out after 30s");
+      resolve({ exitCode: -1, stdout: "", stderr: "osascript timed out" });
+    }, SPAWN_TIMEOUT_MS);
+  });
+
+  return Promise.race([outputPromise, timeoutPromise]);
 };
 
 // --- Public API ---
