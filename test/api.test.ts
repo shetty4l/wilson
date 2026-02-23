@@ -42,6 +42,7 @@ function makeFullStats(overrides?: Partial<ServiceStats>): ServiceStats {
         calendar_last_sync_at: new Date().toISOString(),
         calendar_buffer_pending: 0,
         thalamus_last_run_at: new Date().toISOString(),
+        buffer_pending_total: 0,
       },
       processing: { p50_ms: 2000, p95_ms: 5000, p99_ms: 10000 },
     },
@@ -100,6 +101,7 @@ describe("computeIndicators", () => {
             calendar_last_sync_at: twoHoursAgo,
             calendar_buffer_pending: 5,
             thalamus_last_run_at: twoHoursAgo,
+            buffer_pending_total: 0,
           },
         },
       });
@@ -118,6 +120,7 @@ describe("computeIndicators", () => {
             calendar_last_sync_at: new Date().toISOString(),
             calendar_buffer_pending: 25,
             thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 0,
           },
         },
       });
@@ -138,6 +141,7 @@ describe("computeIndicators", () => {
             calendar_last_sync_at: sevenHoursAgo,
             calendar_buffer_pending: 0,
             thalamus_last_run_at: sevenHoursAgo,
+            buffer_pending_total: 0,
           },
         },
       });
@@ -156,6 +160,7 @@ describe("computeIndicators", () => {
             calendar_last_sync_at: new Date().toISOString(),
             calendar_buffer_pending: 100,
             thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 0,
           },
         },
       });
@@ -176,7 +181,7 @@ describe("computeIndicators", () => {
   });
 
   describe("triage indicator", () => {
-    test("green when pending <= 2 and failed 0", () => {
+    test("green when thalamus fresh (<=7h) and buffer <= 10", () => {
       const stats = makeFullStats();
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
@@ -185,71 +190,127 @@ describe("computeIndicators", () => {
       expect(triage.label).toBe("Clear");
     });
 
-    test("yellow when pending 3-10", () => {
+    test("yellow when thalamus stale (7-13h)", () => {
+      const eightHoursAgo = new Date(
+        Date.now() - 8 * 60 * 60 * 1000,
+      ).toISOString();
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 5, processing: 0, done_24h: 10, failed_24h: 0 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: eightHoursAgo,
+            buffer_pending_total: 5,
+          },
         },
       });
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
 
       expect(triage.status).toBe("yellow");
-      expect(triage.label).toBe("Busy");
+      expect(triage.label).toBe("Delayed");
     });
 
-    test("yellow when failed 1-3", () => {
+    test("yellow when buffer 11-50", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 2 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 25,
+          },
         },
       });
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
 
       expect(triage.status).toBe("yellow");
+      expect(triage.label).toBe("Delayed");
     });
 
-    test("red when pending > 10", () => {
+    test("red when thalamus very stale (>13h)", () => {
+      const fourteenHoursAgo = new Date(
+        Date.now() - 14 * 60 * 60 * 1000,
+      ).toISOString();
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 15, processing: 0, done_24h: 10, failed_24h: 0 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: fourteenHoursAgo,
+            buffer_pending_total: 0,
+          },
         },
       });
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
 
       expect(triage.status).toBe("red");
-      expect(triage.label).toBe("Backlog");
+      expect(triage.label).toBe("Stale");
     });
 
-    test("red when failed > 3", () => {
+    test("red when buffer > 50", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 0, done_24h: 10, failed_24h: 5 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 60,
+          },
         },
       });
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
 
       expect(triage.status).toBe("red");
+      expect(triage.label).toBe("Stale");
     });
 
-    test("red when processing > 1", () => {
+    test("red when thalamus_last_run_at is null (never run)", () => {
       const stats = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 0, processing: 3, done_24h: 10, failed_24h: 0 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: null,
+            buffer_pending_total: 0,
+          },
         },
       });
       const indicators = computeIndicators(stats);
       const triage = getIndicator(indicators, "triage");
 
       expect(triage.status).toBe("red");
+      expect(triage.detail).toContain("never");
+    });
+
+    test("detail shows last run time in minutes when < 1h", () => {
+      const thirtyMinutesAgo = new Date(
+        Date.now() - 30 * 60 * 1000,
+      ).toISOString();
+      const stats = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: thirtyMinutesAgo,
+            buffer_pending_total: 0,
+          },
+        },
+      });
+      const indicators = computeIndicators(stats);
+      const triage = getIndicator(indicators, "triage");
+
+      expect(triage.status).toBe("green");
+      expect(triage.detail).toContain("30m ago");
     });
   });
 
@@ -707,47 +768,143 @@ describe("computeIndicators", () => {
   });
 
   describe("edge cases", () => {
-    test("handles exactly at threshold boundaries", () => {
-      // pending exactly 2 (green), pending exactly 3 (yellow), pending exactly 10 (yellow), pending exactly 11 (red)
-      const stats2 = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          inbox: { pending: 2, processing: 0, done_24h: 10, failed_24h: 0 },
-        },
-      });
-      expect(getIndicator(computeIndicators(stats2), "triage").status).toBe(
-        "green",
-      );
-
-      const stats3 = makeFullStats({
-        cortex: {
-          ...makeFullStats().cortex!,
-          inbox: { pending: 3, processing: 0, done_24h: 10, failed_24h: 0 },
-        },
-      });
-      expect(getIndicator(computeIndicators(stats3), "triage").status).toBe(
-        "yellow",
-      );
-
+    test("triage: handles exactly at threshold boundaries", () => {
+      // buffer exactly 10 (green), buffer exactly 11 (yellow), buffer exactly 50 (yellow), buffer exactly 51 (red)
       const stats10 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 10, processing: 0, done_24h: 10, failed_24h: 0 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 10,
+          },
         },
       });
       expect(getIndicator(computeIndicators(stats10), "triage").status).toBe(
-        "yellow",
+        "green",
       );
 
       const stats11 = makeFullStats({
         cortex: {
           ...makeFullStats().cortex!,
-          inbox: { pending: 11, processing: 0, done_24h: 10, failed_24h: 0 },
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 11,
+          },
         },
       });
       expect(getIndicator(computeIndicators(stats11), "triage").status).toBe(
+        "yellow",
+      );
+
+      const stats50 = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 50,
+          },
+        },
+      });
+      expect(getIndicator(computeIndicators(stats50), "triage").status).toBe(
+        "yellow",
+      );
+
+      const stats51 = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: new Date().toISOString(),
+            buffer_pending_total: 51,
+          },
+        },
+      });
+      expect(getIndicator(computeIndicators(stats51), "triage").status).toBe(
         "red",
       );
+    });
+
+    test("triage: thalamus_last_run_at time thresholds", () => {
+      // 7h (green), 7h+1m (yellow), 13h (yellow), 13h+1m (red)
+      const sevenHours = new Date(
+        Date.now() - 7 * 60 * 60 * 1000,
+      ).toISOString();
+      const sevenHoursPlusOne = new Date(
+        Date.now() - (7 * 60 + 1) * 60 * 1000,
+      ).toISOString();
+      const thirteenHours = new Date(
+        Date.now() - 13 * 60 * 60 * 1000,
+      ).toISOString();
+      const thirteenHoursPlusOne = new Date(
+        Date.now() - (13 * 60 + 1) * 60 * 1000,
+      ).toISOString();
+
+      const stats7h = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: sevenHours,
+            buffer_pending_total: 0,
+          },
+        },
+      });
+      expect(getIndicator(computeIndicators(stats7h), "triage").status).toBe(
+        "green",
+      );
+
+      const stats7hPlus = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: sevenHoursPlusOne,
+            buffer_pending_total: 0,
+          },
+        },
+      });
+      expect(
+        getIndicator(computeIndicators(stats7hPlus), "triage").status,
+      ).toBe("yellow");
+
+      const stats13h = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: thirteenHours,
+            buffer_pending_total: 0,
+          },
+        },
+      });
+      expect(getIndicator(computeIndicators(stats13h), "triage").status).toBe(
+        "yellow",
+      );
+
+      const stats13hPlus = makeFullStats({
+        cortex: {
+          ...makeFullStats().cortex!,
+          receptors: {
+            calendar_last_sync_at: new Date().toISOString(),
+            calendar_buffer_pending: 0,
+            thalamus_last_run_at: thirteenHoursPlusOne,
+            buffer_pending_total: 0,
+          },
+        },
+      });
+      expect(
+        getIndicator(computeIndicators(stats13hPlus), "triage").status,
+      ).toBe("red");
     });
 
     test("handles embedding exactly at 90% (yellow) and 89% (red)", () => {
@@ -780,6 +937,7 @@ describe("computeIndicators", () => {
             calendar_last_sync_at: null,
             calendar_buffer_pending: 0,
             thalamus_last_run_at: null,
+            buffer_pending_total: 0,
           },
         },
       });

@@ -91,40 +91,47 @@ function computeTriage(stats: ServiceStats): Indicator {
     };
   }
 
-  const inbox = stats.cortex.inbox;
-  const pending = inbox.pending;
-  const failed = inbox.failed_24h;
-  const processing = inbox.processing;
+  const receptors = stats.cortex.receptors;
+  const bufferPending = receptors.buffer_pending_total;
+  const thalamusHoursAgo = hoursAgo(receptors.thalamus_last_run_at);
 
-  // Red: pending > 10 OR failed > 3 OR processing > 1
-  if (pending > 10 || failed > 3 || processing > 1) {
+  // Helper to format thalamus last run
+  const formatLastRun = (): string => {
+    if (thalamusHoursAgo === Number.POSITIVE_INFINITY) return "never";
+    if (thalamusHoursAgo < 1)
+      return `${Math.round(thalamusHoursAgo * 60)}m ago`;
+    return `${Math.round(thalamusHoursAgo)}h ago`;
+  };
+
+  // Red: thalamus very stale (>13h) OR buffer > 50
+  if (thalamusHoursAgo > 13 || bufferPending > 50) {
     return {
       id,
       name,
       status: "red",
-      label: "Backlog",
-      detail: `${pending} pending, ${failed} failed, ${processing} processing`,
+      label: "Stale",
+      detail: `Last run ${formatLastRun()}, ${bufferPending} buffered`,
     };
   }
 
-  // Yellow: pending 3-10 OR failed 1-3
-  if (pending >= 3 || failed >= 1) {
+  // Yellow: thalamus stale (>7h) OR buffer > 10
+  if (thalamusHoursAgo > 7 || bufferPending > 10) {
     return {
       id,
       name,
       status: "yellow",
-      label: "Busy",
-      detail: `${pending} pending, ${failed} failed`,
+      label: "Delayed",
+      detail: `Last run ${formatLastRun()}, ${bufferPending} buffered`,
     };
   }
 
-  // Green: pending <= 2, failed 0
+  // Green: thalamus fresh (<=7h) AND buffer <= 10
   return {
     id,
     name,
     status: "green",
     label: "Clear",
-    detail: `${pending} pending, ${inbox.done_24h} done/1h`,
+    detail: `Last run ${formatLastRun()}, ${bufferPending} buffered`,
   };
 }
 

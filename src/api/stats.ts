@@ -70,6 +70,7 @@ export interface CortexStats {
     calendar_last_sync_at: string | null;
     calendar_buffer_pending: number;
     thalamus_last_run_at: string | null;
+    buffer_pending_total: number;
   };
   processing: {
     p50_ms: number;

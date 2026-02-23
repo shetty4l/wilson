@@ -47,7 +47,7 @@ try {
       <div class="flex items-center gap-3">
         <span
           id="refresh-indicator"
-          class="font-mono text-xs text-text-muted hidden"
+          class="font-mono text-xs text-text-muted opacity-0 transition-opacity"
         >
           Refreshing...
         </span>
@@ -557,7 +557,7 @@ try {
   // Fetch stats data
   async function fetchStats(): Promise<ServiceStats | null> {
     const indicator = document.getElementById("refresh-indicator");
-    if (indicator) indicator.classList.remove("hidden");
+    if (indicator) indicator.classList.replace("opacity-0", "opacity-100");
 
     try {
       const res = await fetch("/api/stats");
@@ -574,7 +574,7 @@ try {
       console.error("Failed to fetch stats:", e);
       return null;
     } finally {
-      if (indicator) indicator.classList.add("hidden");
+      if (indicator) indicator.classList.replace("opacity-100", "opacity-0");
     }
   }
 
