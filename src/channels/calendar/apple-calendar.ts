@@ -112,18 +112,28 @@ const defaultSpawn: SpawnFn = async (cmd) => {
 
 // --- Public API ---
 
+export interface ReadAppleCalendarOptions {
+  lookAheadDays: number;
+  includeCalendars?: string[];
+  spawn?: SpawnFn;
+}
+
 /**
  * Read Apple Calendar events for the next N days.
  *
  * Uses osascript with JXA (JavaScript for Automation) to query Calendar.app.
  * Returns empty array on any failure — never throws.
+ *
+ * @param options.lookAheadDays - Number of days to look ahead
+ * @param options.includeCalendars - Optional list of calendar names to include (case-insensitive)
+ * @param options.spawn - Optional spawn function for dependency injection
  */
 export async function readAppleCalendar(
-  lookAheadDays: number,
-  spawn: SpawnFn = defaultSpawn,
+  options: ReadAppleCalendarOptions,
 ): Promise<CalendarEvent[]> {
+  const { lookAheadDays, includeCalendars, spawn = defaultSpawn } = options;
   try {
-    const script = buildJxaScript(lookAheadDays);
+    const script = buildJxaScript(lookAheadDays, includeCalendars);
     const { exitCode, stdout, stderr } = await spawn([
       "osascript",
       "-l",
