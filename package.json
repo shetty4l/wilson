@@ -1,6 +1,6 @@
 {
   "name": "wilson",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deployment orchestration for the Wilson system",
   "type": "module",
   "bin": {

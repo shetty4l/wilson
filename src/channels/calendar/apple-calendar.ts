@@ -86,6 +86,8 @@ const defaultSpawn: SpawnFn = async (cmd) => {
     stderr: "pipe",
   });
 
+  let timeoutId: Timer | null = null;
+
   const outputPromise = (async () => {
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),
@@ -100,14 +102,18 @@ const defaultSpawn: SpawnFn = async (cmd) => {
     stdout: string;
     stderr: string;
   }>((resolve) => {
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       proc.kill();
       log("osascript timed out after 30s");
       resolve({ exitCode: -1, stdout: "", stderr: "osascript timed out" });
     }, SPAWN_TIMEOUT_MS);
   });
 
-  return Promise.race([outputPromise, timeoutPromise]);
+  try {
+    return await Promise.race([outputPromise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 };
 
 // --- Public API ---
