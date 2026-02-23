@@ -40,21 +40,13 @@ try {
 
 <Layout title="Stats | Wilson Dashboard" currentPage="stats">
   <div class="space-y-6">
-    <div class="flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center justify-between">
       <h2 class="font-heading font-semibold text-lg text-text">
         System Statistics
       </h2>
-      <div class="flex items-center gap-3">
-        <span
-          id="refresh-indicator"
-          class="font-mono text-xs text-text-muted opacity-0 transition-opacity"
-        >
-          Refreshing...
-        </span>
-        <span id="last-update" class="font-mono text-xs text-text-muted">
-          —
-        </span>
-      </div>
+      <span id="last-update" class="font-mono text-xs text-text-muted">
+        —
+      </span>
     </div>
 
     <!-- Tab Navigation -->
@@ -556,9 +548,6 @@ try {
 
   // Fetch stats data
   async function fetchStats(): Promise<ServiceStats | null> {
-    const indicator = document.getElementById("refresh-indicator");
-    if (indicator) indicator.classList.replace("opacity-0", "opacity-100");
-
     try {
       const res = await fetch("/api/stats");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -573,8 +562,6 @@ try {
     } catch (e) {
       console.error("Failed to fetch stats:", e);
       return null;
-    } finally {
-      if (indicator) indicator.classList.replace("opacity-100", "opacity-0");
     }
   }
 
