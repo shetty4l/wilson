@@ -93,4 +93,96 @@ describe("readAppleCalendar", () => {
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
+
+  describe("timeout handling", () => {
+    test("returns empty array on timeout (graceful fallback)", async () => {
+      // Simulate a spawn that never resolves (would time out in real usage)
+      // We test by returning the timeout result directly
+      const spawn: SpawnFn = async () => ({
+        exitCode: -1,
+        stdout: "",
+        stderr: "osascript timed out",
+      });
+
+      const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("calendar filtering", () => {
+    test("passes includeCalendars to JXA script", async () => {
+      let capturedScript = "";
+      const spawn: SpawnFn = async (cmd) => {
+        // Capture the script argument
+        capturedScript = cmd[4]; // osascript -l JavaScript -e <script>
+        return { exitCode: 0, stdout: "[]", stderr: "" };
+      };
+
+      await readAppleCalendar({
+        lookAheadDays: 14,
+        includeCalendars: ["Work", "Home"],
+        spawn,
+      });
+
+      // Verify the script contains the filter logic with lowercase names
+      expect(capturedScript).toContain('["work","home"]');
+      expect(capturedScript).toContain("shouldInclude");
+    });
+
+    test("queries all calendars when includeCalendars is empty", async () => {
+      let capturedScript = "";
+      const spawn: SpawnFn = async (cmd) => {
+        capturedScript = cmd[4];
+        return { exitCode: 0, stdout: "[]", stderr: "" };
+      };
+
+      await readAppleCalendar({
+        lookAheadDays: 14,
+        includeCalendars: [],
+        spawn,
+      });
+
+      // With empty array, shouldInclude should always return true
+      expect(capturedScript).toContain(
+        "shouldInclude(calName) { return true; }",
+      );
+    });
+
+    test("queries all calendars when includeCalendars is undefined", async () => {
+      let capturedScript = "";
+      const spawn: SpawnFn = async (cmd) => {
+        capturedScript = cmd[4];
+        return { exitCode: 0, stdout: "[]", stderr: "" };
+      };
+
+      await readAppleCalendar({
+        lookAheadDays: 14,
+        spawn,
+      });
+
+      // Without includeCalendars, shouldInclude should always return true
+      expect(capturedScript).toContain(
+        "shouldInclude(calName) { return true; }",
+      );
+    });
+
+    test("case-insensitive matching in filter", async () => {
+      let capturedScript = "";
+      const spawn: SpawnFn = async (cmd) => {
+        capturedScript = cmd[4];
+        return { exitCode: 0, stdout: "[]", stderr: "" };
+      };
+
+      await readAppleCalendar({
+        lookAheadDays: 14,
+        includeCalendars: ["WORK", "Home", "Personal"],
+        spawn,
+      });
+
+      // All names should be lowercased in the include list
+      expect(capturedScript).toContain('["work","home","personal"]');
+      // The comparison should also use toLowerCase
+      expect(capturedScript).toContain("calName.toLowerCase()");
+    });
+  });
 });
