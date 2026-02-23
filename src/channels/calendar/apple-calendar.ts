@@ -74,7 +74,7 @@ JSON.stringify(results);
 
 // --- Spawn type for dependency injection ---
 
-const SPAWN_TIMEOUT_MS = 30_000; // 30 seconds
+const SPAWN_TIMEOUT_MS = 60_000; // 60 seconds
 
 export type SpawnFn = (
   cmd: string[],
@@ -104,7 +104,7 @@ const defaultSpawn: SpawnFn = async (cmd) => {
   }>((resolve) => {
     timeoutId = setTimeout(() => {
       proc.kill();
-      log("osascript timed out after 30s");
+      log("osascript timed out after 60s");
       resolve({ exitCode: -1, stdout: "", stderr: "osascript timed out" });
     }, SPAWN_TIMEOUT_MS);
   });
