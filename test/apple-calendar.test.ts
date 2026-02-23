@@ -34,7 +34,7 @@ describe("readAppleCalendar", () => {
       stderr: "",
     });
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual(events);
     expect(result.length).toBe(2);
     expect(result[0].title).toBe("Team Meeting");
@@ -48,7 +48,7 @@ describe("readAppleCalendar", () => {
       stderr: "osascript: not available on this platform",
     });
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
 
@@ -59,7 +59,7 @@ describe("readAppleCalendar", () => {
       stderr: "",
     });
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
 
@@ -68,7 +68,7 @@ describe("readAppleCalendar", () => {
       throw new Error("spawn failed");
     };
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
 
@@ -79,7 +79,7 @@ describe("readAppleCalendar", () => {
       stderr: "",
     });
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
 
@@ -90,7 +90,7 @@ describe("readAppleCalendar", () => {
       stderr: "",
     });
 
-    const result = await readAppleCalendar(14, spawn);
+    const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
     expect(result).toEqual([]);
   });
 });

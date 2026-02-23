@@ -22,6 +22,7 @@ export interface CalendarChannelConfig {
   pollIntervalSeconds: number;
   lookAheadDays: number;
   extendedLookAheadDays: number;
+  includeCalendars?: string[];
 }
 
 // --- Channel ---
@@ -99,7 +100,11 @@ export class CalendarChannel implements Channel {
       }
 
       // Read events
-      const events = await readAppleCalendar(windowDays, this.spawnFn);
+      const events = await readAppleCalendar({
+        lookAheadDays: windowDays,
+        includeCalendars: this.config.includeCalendars,
+        spawn: this.spawnFn,
+      });
 
       // Update lastSyncAt - we successfully read from Apple Calendar
       this.stats.lastSyncAt = Date.now();
