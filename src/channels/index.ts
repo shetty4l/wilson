@@ -7,8 +7,35 @@
  */
 
 import { createLogger } from "@shetty4l/core/log";
+import { err, ok, type Result } from "@shetty4l/core/result";
 
 const log = createLogger("wilson:channels");
+
+// --- Channel tools ---
+
+/**
+ * Describes a tool that a channel exposes for external invocation.
+ */
+export interface ChannelTool {
+  /** Unique tool name within the channel. */
+  name: string;
+  /** Human-readable description of what the tool does. */
+  description: string;
+  /** JSON Schema for the tool's parameters (optional). */
+  parameters?: Record<string, unknown>;
+}
+
+/**
+ * Result of executing a channel tool.
+ */
+export interface ToolResult {
+  /** Whether the tool executed successfully. */
+  success: boolean;
+  /** Result data on success, or error details on failure. */
+  data?: unknown;
+  /** Error message if success is false. */
+  error?: string;
+}
 
 // --- Channel stats ---
 
@@ -50,6 +77,13 @@ export interface Channel {
   sync(): Promise<void>;
   /** Get current channel stats. */
   getStats(): ChannelStats;
+  /** Tools exposed by this channel (optional). */
+  tools?: ChannelTool[];
+  /** Execute a tool by name (optional - only if tools is defined). */
+  executeTool?(
+    toolName: string,
+    params?: Record<string, unknown>,
+  ): Promise<ToolResult>;
 }
 
 // --- Channel registry ---
@@ -113,5 +147,54 @@ export class ChannelRegistry {
       stats[ch.name] = ch.getStats();
     }
     return stats;
+  }
+
+  /** Get all tools from all channels, qualified by channel name. */
+  getAllTools(): Array<{ channel: string; tool: ChannelTool }> {
+    const result: Array<{ channel: string; tool: ChannelTool }> = [];
+    for (const ch of this.channels) {
+      if (ch.tools) {
+        for (const tool of ch.tools) {
+          result.push({ channel: ch.name, tool });
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Execute a tool on a specific channel.
+   * Returns Result with ToolResult on success, or error string on failure.
+   */
+  async executeTool(
+    channelName: string,
+    toolName: string,
+    params?: Record<string, unknown>,
+  ): Promise<Result<ToolResult, string>> {
+    const channel = this.byName.get(channelName);
+    if (!channel) {
+      return err(`channel "${channelName}" not found`);
+    }
+
+    if (!channel.tools) {
+      return err(`channel "${channelName}" has no tools`);
+    }
+
+    const tool = channel.tools.find((t) => t.name === toolName);
+    if (!tool) {
+      return err(`tool "${toolName}" not found on channel "${channelName}"`);
+    }
+
+    if (!channel.executeTool) {
+      return err(`channel "${channelName}" does not implement executeTool`);
+    }
+
+    try {
+      const result = await channel.executeTool(toolName, params);
+      return ok(result);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return ok({ success: false, error: message });
+    }
   }
 }
