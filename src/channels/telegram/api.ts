@@ -26,9 +26,19 @@ export interface TelegramUpdate {
   message?: TelegramMessage;
 }
 
+export interface InlineKeyboardButton {
+  text: string;
+  callback_data: string;
+}
+
+export interface InlineKeyboardMarkup {
+  inline_keyboard: InlineKeyboardButton[][];
+}
+
 export interface SendMessageOptions {
   threadId?: number;
   parseMode?: string;
+  replyMarkup?: InlineKeyboardMarkup;
 }
 
 export class TelegramApiError extends Error {
@@ -226,6 +236,9 @@ export async function sendMessage(
   }
   if (opts.parseMode !== undefined) {
     payload.parse_mode = opts.parseMode;
+  }
+  if (opts.replyMarkup !== undefined) {
+    payload.reply_markup = opts.replyMarkup;
   }
 
   return callTelegramApi<TelegramMessage>(
