@@ -182,6 +182,9 @@ export class CalendarChannel implements Channel {
         status: this.state.status as ChannelStats["status"],
         error: this.state.error,
         consecutiveFailures: this.state.consecutiveFailures ?? 0,
+        lastExtendedSyncDate: this.state.lastExtendedSyncDate
+          ? new Date(this.state.lastExtendedSyncDate).getTime()
+          : null,
       };
     }
     // Fallback to in-memory state for tests
@@ -192,6 +195,9 @@ export class CalendarChannel implements Channel {
       status: this.memoryState.status as ChannelStats["status"],
       error: this.memoryState.error,
       consecutiveFailures: this.memoryState.consecutiveFailures,
+      lastExtendedSyncDate: this.memoryState.lastExtendedSyncDate
+        ? new Date(this.memoryState.lastExtendedSyncDate).getTime()
+        : null,
     };
   }
 

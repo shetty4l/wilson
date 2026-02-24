@@ -78,6 +78,9 @@ function formatChannelStats(
       status: s.status,
       error: s.error,
       consecutive_failures: s.consecutiveFailures,
+      last_extended_sync_date: s.lastExtendedSyncDate
+        ? new Date(s.lastExtendedSyncDate).toISOString()
+        : null,
     };
   }
   return result;
@@ -90,6 +93,7 @@ interface ChannelStatsResponse {
   status: "healthy" | "degraded" | "error";
   error: string | null;
   consecutive_failures: number;
+  last_extended_sync_date?: string | null;
 }
 
 /**

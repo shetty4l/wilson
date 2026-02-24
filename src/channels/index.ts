@@ -25,6 +25,8 @@ export interface ChannelStats {
   error: string | null;
   /** Number of consecutive failures (timeouts or errors). Resets on success. */
   consecutiveFailures: number;
+  /** When the last extended sync (30-day window) occurred (calendar channel only). */
+  lastExtendedSyncDate?: number | null;
 }
 
 // --- Channel interface ---
