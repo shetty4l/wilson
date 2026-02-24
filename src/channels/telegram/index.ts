@@ -14,7 +14,12 @@ import type { TelegramChannelConfig } from "../../config";
 import { TelegramChannelState } from "../../state/telegram";
 import type { CortexClient, OutboxMessage } from "../cortex-client";
 import type { Channel, ChannelStats } from "../index";
-import { getUpdates, parseTelegramTopicKey, sendMessage } from "./api";
+import {
+  getUpdates,
+  type InlineKeyboardMarkup,
+  parseTelegramTopicKey,
+  sendMessage,
+} from "./api";
 import { chunkMarkdownV2 } from "./chunker";
 import { formatForTelegram } from "./format";
 
@@ -305,11 +310,25 @@ export class TelegramChannel implements Channel {
     const formatted = formatForTelegram(msg.text);
     const chunks = chunkMarkdownV2(formatted);
 
-    // Send each chunk
-    for (const chunk of chunks) {
-      await sendMessage(this.config.botToken, topic.chatId, chunk, {
+    // Build inline keyboard from payload.buttons if present
+    const buttons = msg.payload?.buttons as
+      | Array<{ label: string; data: string }>
+      | undefined;
+    const replyMarkup: InlineKeyboardMarkup | undefined = buttons?.length
+      ? {
+          inline_keyboard: [
+            buttons.map((b) => ({ text: b.label, callback_data: b.data })),
+          ],
+        }
+      : undefined;
+
+    // Send each chunk (only last chunk gets buttons)
+    for (let i = 0; i < chunks.length; i++) {
+      const isLastChunk = i === chunks.length - 1;
+      await sendMessage(this.config.botToken, topic.chatId, chunks[i], {
         threadId: topic.threadId,
         parseMode: "MarkdownV2",
+        replyMarkup: isLastChunk ? replyMarkup : undefined,
       });
     }
 
