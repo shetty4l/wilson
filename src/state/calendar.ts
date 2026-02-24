@@ -31,4 +31,7 @@ export class CalendarChannelState {
 
   /** Number of consecutive failures (timeouts or errors). Resets on success. */
   @Field("number") consecutiveFailures: number = 0;
+
+  /** Timestamp of last recovery attempt (rate-limiting). */
+  @Field("date") lastRecoveryAt: Date | null = null;
 }

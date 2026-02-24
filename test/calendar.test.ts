@@ -451,6 +451,152 @@ describe("CalendarChannel", () => {
     });
   });
 
+  describe("recovery logic", () => {
+    test("triggers kill_osascript recovery after 3 consecutive timeouts", async () => {
+      const cortex = makeMockCortex();
+      const recoveryActions: string[] = [];
+
+      const timeoutSpawn = async () => ({
+        exitCode: -1,
+        stdout: "",
+        stderr: "osascript timed out",
+      });
+
+      const mockRecover = async (action: string) => {
+        recoveryActions.push(action);
+        return true;
+      };
+
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        undefined,
+        timeoutSpawn,
+        mockRecover,
+      );
+
+      await channel.start(); // timeout 1
+      await channel.sync(); // timeout 2
+      await channel.sync(); // timeout 3 - should trigger recovery
+
+      expect(recoveryActions).toEqual(["kill_osascript"]);
+    });
+
+    test("triggers restart_calendar after 6 consecutive timeouts", async () => {
+      const cortex = makeMockCortex();
+      const recoveryActions: string[] = [];
+
+      const timeoutSpawn = async () => ({
+        exitCode: -1,
+        stdout: "",
+        stderr: "osascript timed out",
+      });
+
+      // Mock recover that "succeeds" but doesn't actually fix the problem
+      const mockRecover = async (action: string) => {
+        recoveryActions.push(action);
+        return true;
+      };
+
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        undefined,
+        timeoutSpawn,
+        mockRecover,
+      );
+
+      // Trigger 6 consecutive timeouts
+      await channel.start(); // 1
+      await channel.sync(); // 2
+      await channel.sync(); // 3 - kill_osascript
+      // Need to reset cooldown for testing - we'll use a fresh channel
+      await channel.stop();
+
+      // Create new channel with state already at 5 failures
+      const channel2 = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        undefined,
+        timeoutSpawn,
+        mockRecover,
+      );
+      // Use internal method to set up state
+      (channel2 as any).memoryState.consecutiveFailures = 5;
+      (channel2 as any).running = true;
+
+      await channel2.sync(); // 6 - should trigger restart_calendar
+
+      expect(recoveryActions).toContain("restart_calendar");
+      await channel2.stop();
+    });
+
+    test("respects recovery cooldown (5 minutes)", async () => {
+      const cortex = makeMockCortex();
+      const recoveryActions: string[] = [];
+
+      const timeoutSpawn = async () => ({
+        exitCode: -1,
+        stdout: "",
+        stderr: "osascript timed out",
+      });
+
+      const mockRecover = async (action: string) => {
+        recoveryActions.push(action);
+        return true;
+      };
+
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        undefined,
+        timeoutSpawn,
+        mockRecover,
+      );
+
+      await channel.start(); // 1
+      await channel.sync(); // 2
+      await channel.sync(); // 3 - triggers recovery
+      await channel.sync(); // 4 - should NOT trigger recovery (cooldown)
+
+      // Only one recovery action should have been triggered
+      expect(recoveryActions).toEqual(["kill_osascript"]);
+    });
+
+    test("no recovery triggered for non-timeout errors", async () => {
+      const cortex = makeMockCortex();
+      const recoveryActions: string[] = [];
+
+      // Non-timeout error (osascript failed, not timed out)
+      const failSpawn = async () => ({
+        exitCode: 1,
+        stdout: "",
+        stderr: "osascript: not available",
+      });
+
+      const mockRecover = async (action: string) => {
+        recoveryActions.push(action);
+        return true;
+      };
+
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        undefined,
+        failSpawn,
+        mockRecover,
+      );
+
+      await channel.start(); // 1
+      await channel.sync(); // 2
+      await channel.sync(); // 3
+      await channel.sync(); // 4
+
+      // No recovery should be triggered for non-timeout errors
+      expect(recoveryActions).toEqual([]);
+    });
+  });
+
   describe("includeCalendars filtering", () => {
     test("passes includeCalendars to readAppleCalendar", async () => {
       const cortex = makeMockCortex();

@@ -18,6 +18,53 @@ import { readAppleCalendar, type SpawnFn } from "./apple-calendar";
 
 const log = createLogger("wilson:calendar");
 
+// --- Recovery types ---
+
+export type RecoveryAction = "kill_osascript" | "restart_calendar";
+
+export type RecoverFn = (action: RecoveryAction) => Promise<boolean>;
+
+/**
+ * Default recovery implementation using system commands.
+ * Returns true if recovery command executed successfully.
+ */
+const defaultRecover: RecoverFn = async (action) => {
+  try {
+    if (action === "kill_osascript") {
+      // Kill any hung osascript processes related to Calendar
+      const proc = Bun.spawn(["pkill", "-9", "-f", "osascript.*Calendar"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await proc.exited;
+      // pkill returns 0 if processes killed, 1 if none found - both are "success"
+      return true;
+    } else if (action === "restart_calendar") {
+      // Quit Calendar.app gracefully then relaunch
+      const quit = Bun.spawn(
+        ["osascript", "-e", 'tell app "Calendar" to quit'],
+        {
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      await quit.exited;
+      // Wait a moment for app to fully quit
+      await new Promise((r) => setTimeout(r, 1000));
+      // Relaunch Calendar.app
+      const launch = Bun.spawn(["open", "-a", "Calendar"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const exitCode = await launch.exited;
+      return exitCode === 0;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 // --- Config ---
 
 export interface CalendarChannelConfig {
@@ -26,6 +73,14 @@ export interface CalendarChannelConfig {
   extendedLookAheadDays: number;
   includeCalendars?: string[];
 }
+
+// --- Recovery constants ---
+
+/** Number of consecutive timeouts before attempting recovery */
+const RECOVERY_THRESHOLD = 3;
+
+/** Minimum time between recovery attempts (5 minutes) */
+const RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 
 // --- Channel ---
 
@@ -52,21 +107,41 @@ export class CalendarChannel implements Channel {
     status: "healthy" as string,
     error: null as string | null,
     consecutiveFailures: 0,
+    lastRecoveryAt: null as Date | null,
   };
+
+  // Recovery function for dependency injection (testability)
+  private recoverFn: RecoverFn;
 
   constructor(
     private cortex: CortexClient,
     private config: CalendarChannelConfig,
     stateLoaderOrSpawnFn?: StateLoader | SpawnFn,
-    spawnFn?: SpawnFn,
+    spawnFnOrRecover?: SpawnFn | RecoverFn,
+    recoverFn?: RecoverFn,
   ) {
-    // Support both old signature (cortex, config, spawnFn) and new (cortex, config, stateLoader, spawnFn)
+    // Support both old signature (cortex, config, spawnFn) and new (cortex, config, stateLoader, spawnFn, recoverFn)
     if (typeof stateLoaderOrSpawnFn === "function") {
       this.stateLoader = null;
       this.spawnFn = stateLoaderOrSpawnFn;
+      this.recoverFn = defaultRecover;
     } else {
       this.stateLoader = stateLoaderOrSpawnFn ?? null;
-      this.spawnFn = spawnFn;
+      // spawnFnOrRecover could be SpawnFn or RecoverFn - detect by arity/name
+      if (typeof spawnFnOrRecover === "function") {
+        // If recoverFn is also provided, spawnFnOrRecover is SpawnFn
+        if (recoverFn) {
+          this.spawnFn = spawnFnOrRecover as SpawnFn;
+          this.recoverFn = recoverFn;
+        } else {
+          // Only one function provided - assume it's SpawnFn for backwards compat
+          this.spawnFn = spawnFnOrRecover as SpawnFn;
+          this.recoverFn = defaultRecover;
+        }
+      } else {
+        this.spawnFn = undefined;
+        this.recoverFn = defaultRecover;
+      }
     }
   }
 
@@ -154,6 +229,11 @@ export class CalendarChannel implements Channel {
           );
           s.status = "degraded";
           s.error = "Calendar read timed out";
+
+          // Attempt recovery after hitting threshold
+          if (s.consecutiveFailures >= RECOVERY_THRESHOLD) {
+            await this.attemptRecovery(s);
+          }
         } else if (error.type === "osascript_failed") {
           log(
             `sync: osascript failed (exit ${error.exitCode}): ${error.stderr}`,
@@ -227,6 +307,49 @@ export class CalendarChannel implements Channel {
       log(`sync error: ${errorMsg}`);
       s.status = "error";
       s.error = errorMsg;
+    }
+  }
+
+  // --- Recovery ---
+
+  /**
+   * Attempt to recover from consecutive timeouts.
+   *
+   * Recovery is rate-limited to once per 5 minutes.
+   * Step 1: Kill hung osascript processes
+   * Step 2: If at double threshold (6 failures), also restart Calendar.app
+   */
+  private async attemptRecovery(
+    s: CalendarChannelState | typeof this.memoryState,
+  ): Promise<void> {
+    const now = Date.now();
+    const lastRecovery = s.lastRecoveryAt?.getTime() ?? 0;
+
+    // Rate-limit recovery attempts
+    if (now - lastRecovery < RECOVERY_COOLDOWN_MS) {
+      log(
+        `recovery: skipping (cooldown, last attempt ${Math.round((now - lastRecovery) / 1000)}s ago)`,
+      );
+      return;
+    }
+
+    s.lastRecoveryAt = new Date();
+
+    // Step 1: Kill hung osascript processes
+    log("recovery: killing hung osascript processes");
+    await this.recoverFn("kill_osascript");
+
+    // Step 2: If at double threshold, also restart Calendar.app
+    if (s.consecutiveFailures >= RECOVERY_THRESHOLD * 2) {
+      log("recovery: restarting Calendar.app");
+      const restartSuccess = await this.recoverFn("restart_calendar");
+      if (restartSuccess) {
+        log("recovery: Calendar.app restarted, will retry on next sync");
+      } else {
+        log("recovery: Calendar.app restart failed");
+      }
+    } else {
+      log("recovery: osascript processes killed, will retry on next sync");
     }
   }
 
