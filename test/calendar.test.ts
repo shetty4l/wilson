@@ -250,13 +250,11 @@ describe("CalendarChannel", () => {
     // Should not throw
     await channel.start();
 
-    // osascript failed → empty events → still posts initial (empty array hash differs from null)
-    expect(cortex.calls.length).toBe(1);
-    const data = cortex.calls[0].data as {
-      events: CalendarEvent[];
-      windowDays: number;
-    };
-    expect(data.events).toEqual([]);
+    // osascript failed → error state, no cortex post
+    expect(cortex.calls.length).toBe(0);
+    const stats = channel.getStats();
+    expect(stats.status).toBe("error");
+    expect(stats.error).toContain("osascript");
   });
 
   describe("stats tracking", () => {
@@ -341,9 +339,9 @@ describe("CalendarChannel", () => {
       expect(stats.error).toContain("Cortex");
     });
 
-    test("getStats() remains healthy when osascript returns empty (graceful fallback)", async () => {
+    test("getStats() shows error when osascript throws", async () => {
       const cortex = makeMockCortex();
-      // Spawn that throws — readAppleCalendar catches it and returns []
+      // Spawn that throws — readAppleCalendar catches it and returns Err
       const errorSpawn = async () => {
         throw new Error("spawn failed");
       };
@@ -352,11 +350,12 @@ describe("CalendarChannel", () => {
 
       await channel.start();
 
-      // readAppleCalendar catches the error and returns [] — sync proceeds normally
+      // readAppleCalendar catches the error and returns Err — sync records error state
       const stats = channel.getStats();
-      expect(stats.status).toBe("healthy"); // graceful degradation
+      expect(stats.status).toBe("error");
+      expect(stats.error).toContain("spawn failed");
       expect(stats.lastSyncAt).toBeGreaterThan(0);
-      expect(stats.eventsPosted).toBe(0); // empty events
+      expect(stats.eventsPosted).toBe(0);
     });
 
     test("getStats() returns a copy (immutable)", async () => {

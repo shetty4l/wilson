@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   type CalendarEvent,
+  type CalendarReadError,
   readAppleCalendar,
   type SpawnFn,
 } from "../src/channels/calendar/apple-calendar";
@@ -35,13 +36,16 @@ describe("readAppleCalendar", () => {
     });
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual(events);
-    expect(result.length).toBe(2);
-    expect(result[0].title).toBe("Team Meeting");
-    expect(result[1].calendarName).toBe("Home");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual(events);
+      expect(result.value.length).toBe(2);
+      expect(result.value[0].title).toBe("Team Meeting");
+      expect(result.value[1].calendarName).toBe("Home");
+    }
   });
 
-  test("returns empty array on osascript failure", async () => {
+  test("returns osascript_failed error on non-timeout failure", async () => {
     const spawn: SpawnFn = async () => ({
       exitCode: 1,
       stdout: "",
@@ -49,7 +53,16 @@ describe("readAppleCalendar", () => {
     });
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual([]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe("osascript_failed");
+      if (result.error.type === "osascript_failed") {
+        expect(result.error.exitCode).toBe(1);
+        expect(result.error.stderr).toBe(
+          "osascript: not available on this platform",
+        );
+      }
+    }
   });
 
   test("returns empty array on empty calendar", async () => {
@@ -60,19 +73,28 @@ describe("readAppleCalendar", () => {
     });
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
   });
 
-  test("returns empty array when spawn throws", async () => {
+  test("returns exception error when spawn throws", async () => {
     const spawn: SpawnFn = async () => {
       throw new Error("spawn failed");
     };
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual([]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe("exception");
+      if (result.error.type === "exception") {
+        expect(result.error.message).toBe("spawn failed");
+      }
+    }
   });
 
-  test("returns empty array on invalid JSON output", async () => {
+  test("returns parse_error on invalid JSON output", async () => {
     const spawn: SpawnFn = async () => ({
       exitCode: 0,
       stdout: "not valid json",
@@ -80,7 +102,10 @@ describe("readAppleCalendar", () => {
     });
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual([]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe("parse_error");
+    }
   });
 
   test("returns empty array when output is empty string", async () => {
@@ -91,13 +116,14 @@ describe("readAppleCalendar", () => {
     });
 
     const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-    expect(result).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
   });
 
   describe("timeout handling", () => {
-    test("returns empty array on timeout (graceful fallback)", async () => {
-      // Simulate a spawn that never resolves (would time out in real usage)
-      // We test by returning the timeout result directly
+    test("returns timeout error on timeout", async () => {
       const spawn: SpawnFn = async () => ({
         exitCode: -1,
         stdout: "",
@@ -105,7 +131,24 @@ describe("readAppleCalendar", () => {
       });
 
       const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
-      expect(result).toEqual([]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("timeout");
+      }
+    });
+
+    test("returns osascript_failed error on non-timeout failure", async () => {
+      const spawn: SpawnFn = async () => ({
+        exitCode: 1,
+        stdout: "",
+        stderr: "some other error",
+      });
+
+      const result = await readAppleCalendar({ lookAheadDays: 14, spawn });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("osascript_failed");
+      }
     });
   });
 
