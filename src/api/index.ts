@@ -7,6 +7,7 @@ import { handleRestartAction, handleUpdateAction } from "./actions";
 import { computeIndicators } from "./indicators";
 import { ALLOWED_SERVICES, handleLogsStream, isAllowedService } from "./logs";
 import { fetchAllStats } from "./stats";
+import { handleExecuteTool, handleGetTools } from "./tools";
 
 export interface ServiceHealthInfo {
   name: string;
@@ -211,6 +212,16 @@ export async function handleApiRequest(
     }
   }
 
+  // GET /api/tools
+  if (path === "/api/tools" && method === "GET") {
+    return handleGetTools(registry);
+  }
+
+  // POST /api/tools/execute
+  if (path === "/api/tools/execute" && method === "POST") {
+    return handleExecuteTool(req, registry);
+  }
+
   // Not an API route we handle
   return null;
 }
@@ -222,3 +233,4 @@ export { ALLOWED_SERVICES, handleLogsStream, isAllowedService } from "./logs";
 // Re-export types for convenience
 export type { HealthStatus, ServiceStats } from "./stats";
 export { fetchAllStats } from "./stats";
+export { handleExecuteTool, handleGetTools } from "./tools";

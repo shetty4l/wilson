@@ -820,17 +820,18 @@ describe("computeIndicators", () => {
 
     test("triage: thalamus_last_run_at time thresholds", () => {
       // 7h (green), 7h+1m (yellow), 13h (yellow), 13h+1m (red)
+      // Add 1s buffer to avoid flaky boundary conditions due to test execution time
       const sevenHours = new Date(
-        Date.now() - 7 * 60 * 60 * 1000,
+        Date.now() - 7 * 60 * 60 * 1000 + 1000,
       ).toISOString();
       const sevenHoursPlusOne = new Date(
-        Date.now() - (7 * 60 + 1) * 60 * 1000,
+        Date.now() - (7 * 60 + 1) * 60 * 1000 - 1000,
       ).toISOString();
       const thirteenHours = new Date(
-        Date.now() - 13 * 60 * 60 * 1000,
+        Date.now() - 13 * 60 * 60 * 1000 + 1000,
       ).toISOString();
       const thirteenHoursPlusOne = new Date(
-        Date.now() - (13 * 60 + 1) * 60 * 1000,
+        Date.now() - (13 * 60 + 1) * 60 * 1000 - 1000,
       ).toISOString();
 
       const stats7h = makeFullStats({
