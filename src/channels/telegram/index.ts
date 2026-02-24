@@ -12,9 +12,13 @@ import { createLogger } from "@shetty4l/core/log";
 import type { StateLoader } from "@shetty4l/core/state";
 import type { TelegramChannelConfig } from "../../config";
 import { TelegramChannelState } from "../../state/telegram";
+import { TelegramCallback } from "../../state/telegram-callback";
 import type { CortexClient, OutboxMessage } from "../cortex-client";
 import type { Channel, ChannelStats } from "../index";
 import {
+  answerCallbackQuery,
+  type CallbackQuery,
+  editMessageReplyMarkup,
   getUpdates,
   type InlineKeyboardMarkup,
   parseTelegramTopicKey,
@@ -166,6 +170,13 @@ export class TelegramChannel implements Channel {
     for (const update of updates) {
       if (!this.running) break;
 
+      // Handle callback queries (inline button clicks)
+      if (update.callback_query) {
+        await this.handleCallbackQuery(update.callback_query);
+        s.updateOffset = update.update_id + 1;
+        continue;
+      }
+
       // Filter by allowed user IDs
       const userId = update.message?.from?.id;
       if (!userId || !this.config.allowedUserIds.includes(userId)) {
@@ -220,6 +231,96 @@ export class TelegramChannel implements Channel {
 
       // Advance cursor after successful processing
       s.updateOffset = update.update_id + 1;
+    }
+  }
+
+  private async handleCallbackQuery(query: CallbackQuery): Promise<void> {
+    const s = this.state ?? this.memoryState;
+
+    // Check for duplicate via exists()
+    if (this.stateLoader) {
+      const exists = await this.stateLoader.exists(TelegramCallback, query.id);
+      if (exists) {
+        log(`duplicate callback query ${query.id}, skipping`);
+        return;
+      }
+    }
+
+    // Record callback for deduplication
+    if (this.stateLoader) {
+      const callback = this.stateLoader.load(TelegramCallback, query.id);
+      callback.callbackQueryId = query.id;
+      callback.chatId = query.message?.chat.id ?? 0;
+      callback.messageId = query.message?.message_id ?? 0;
+      callback.userId = query.from.id;
+      callback.data = query.data ?? "";
+      callback.processedAt = new Date();
+      await this.stateLoader.flush();
+    }
+
+    // Answer the callback to dismiss the loading spinner
+    try {
+      await answerCallbackQuery(this.config.botToken, query.id);
+    } catch (e) {
+      log(`failed to answer callback query ${query.id}: ${e}`);
+      // Continue processing - answering is not critical
+    }
+
+    // Remove buttons from the message
+    if (query.message) {
+      try {
+        await editMessageReplyMarkup(
+          this.config.botToken,
+          query.message.chat.id,
+          query.message.message_id,
+          null,
+        );
+      } catch (e) {
+        log(`failed to remove buttons from message: ${e}`);
+        // Continue processing - button removal is not critical
+      }
+    }
+
+    // Filter by allowed user IDs
+    const userId = query.from.id;
+    if (!this.config.allowedUserIds.includes(userId)) {
+      log(`ignoring callback from unauthorized user: ${userId}`);
+      return;
+    }
+
+    // Derive topic key
+    const chatId = query.message?.chat.id ?? 0;
+    const threadId = query.message?.message_thread_id;
+    const topicKey = threadId ? `${chatId}:${threadId}` : `${chatId}`;
+
+    // Post to Cortex
+    const result = await this.cortex.receive({
+      channel: "telegram",
+      externalId: `callback:${query.id}`,
+      data: {
+        type: "button_callback",
+        callbackData: query.data,
+        originalMessageId: query.message?.message_id,
+        originalMessageText: query.message?.text,
+        userId,
+        chatId,
+        threadId,
+        topicKey,
+      },
+      occurredAt: new Date().toISOString(),
+      mode: "realtime",
+      metadata: { topicKey },
+    });
+
+    if (result.ok) {
+      log(`posted callback ${query.id} to cortex (topic: ${topicKey})`);
+      s.lastPostAt = new Date();
+      s.status = "healthy";
+      s.error = null;
+      s.consecutiveFailures = 0;
+    } else {
+      log(`cortex error for callback ${query.id}: ${result.error}`);
+      throw new Error(`Cortex error: ${result.error}`);
     }
   }
 
