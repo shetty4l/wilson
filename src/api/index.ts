@@ -77,6 +77,7 @@ function formatChannelStats(
       events_posted: s.eventsPosted,
       status: s.status,
       error: s.error,
+      consecutive_failures: s.consecutiveFailures,
     };
   }
   return result;
@@ -88,6 +89,7 @@ interface ChannelStatsResponse {
   events_posted: number;
   status: "healthy" | "degraded" | "error";
   error: string | null;
+  consecutive_failures: number;
 }
 
 /**

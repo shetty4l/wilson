@@ -156,6 +156,7 @@ const tabs = [
     events_posted: number;
     status: "healthy" | "degraded" | "error";
     error: string | null;
+    consecutive_failures: number;
   }
 
   interface ServiceStats {
@@ -565,6 +566,13 @@ const tabs = [
               ? "bg-amber-nerv"
               : "bg-red-nerv";
 
+        const consecutiveFailuresHtml = ch.consecutive_failures > 0
+          ? `<div>
+              <div class="font-mono text-lg text-red-nerv">${ch.consecutive_failures}</div>
+              <div class="font-mono text-xs text-red-nerv">Consecutive Failures</div>
+            </div>`
+          : "";
+
         return `
           <div class="p-3 bg-nerv-bg/50 rounded border border-nerv-border">
             <div class="flex items-center justify-between mb-3">
@@ -587,6 +595,7 @@ const tabs = [
                 <div class="font-mono text-lg text-amber-nerv">${ch.events_posted}</div>
                 <div class="font-mono text-xs text-text-muted">Events Posted</div>
               </div>
+              ${consecutiveFailuresHtml}
               ${ch.error ? `<div class="col-span-2"><div class="font-mono text-xs text-red-nerv truncate" title="${ch.error}">${ch.error}</div></div>` : ""}
             </div>
           </div>
