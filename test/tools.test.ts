@@ -71,13 +71,22 @@ describe("ChannelRegistry tools", () => {
   test("getAllTools aggregates tools from multiple channels", () => {
     const reg = new ChannelRegistry();
 
-    const tool1: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool1: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     const tool2: ChannelTool = {
       name: "create",
       description: "Create event",
       parameters: { type: "object" },
+      mutatesState: true,
     };
-    const tool3: ChannelTool = { name: "send", description: "Send message" };
+    const tool3: ChannelTool = {
+      name: "send",
+      description: "Send message",
+      mutatesState: true,
+    };
 
     reg.register(
       makeChannelWithTools("calendar", [tool1, tool2], async () => ({
@@ -124,7 +133,11 @@ describe("ChannelRegistry tools", () => {
 
   test("executeTool returns error for unknown tool on channel", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async () => ({ success: true })),
     );
@@ -140,7 +153,11 @@ describe("ChannelRegistry tools", () => {
 
   test("executeTool returns error when channel has tools but no executeTool method", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     // Channel has tools array but no executeTool method
     const channel = makeChannelWithTools("calendar", [tool], undefined);
     reg.register(channel);
@@ -156,7 +173,11 @@ describe("ChannelRegistry tools", () => {
 
   test("executeTool returns success result", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async (_name, params) => ({
         success: true,
@@ -176,7 +197,11 @@ describe("ChannelRegistry tools", () => {
 
   test("executeTool catches and wraps thrown errors", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async () => {
         throw new Error("Calendar API unavailable");
@@ -210,8 +235,16 @@ describe("handleGetTools", () => {
 
   test("returns tools from all channels", async () => {
     const reg = new ChannelRegistry();
-    const tool1: ChannelTool = { name: "sync", description: "Sync events" };
-    const tool2: ChannelTool = { name: "send", description: "Send message" };
+    const tool1: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
+    const tool2: ChannelTool = {
+      name: "send",
+      description: "Send message",
+      mutatesState: true,
+    };
 
     reg.register(
       makeChannelWithTools("calendar", [tool1], async () => ({
@@ -291,7 +324,11 @@ describe("handleExecuteTool", () => {
 
   test("returns 404 for unknown tool on channel", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async () => ({ success: true })),
     );
@@ -324,7 +361,11 @@ describe("handleExecuteTool", () => {
 
   test("returns 400 for channel without executeTool method", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(makeChannelWithTools("calendar", [tool], undefined));
     const request = makeRequest({ channel: "calendar", tool: "sync" });
 
@@ -340,7 +381,11 @@ describe("handleExecuteTool", () => {
 
   test("returns result on successful execution", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async (_name, params) => ({
         success: true,
@@ -365,7 +410,11 @@ describe("handleExecuteTool", () => {
 
   test("returns error result when tool execution fails", async () => {
     const reg = new ChannelRegistry();
-    const tool: ChannelTool = { name: "sync", description: "Sync events" };
+    const tool: ChannelTool = {
+      name: "sync",
+      description: "Sync events",
+      mutatesState: false,
+    };
     reg.register(
       makeChannelWithTools("calendar", [tool], async () => {
         throw new Error("API rate limited");

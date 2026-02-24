@@ -23,6 +23,8 @@ export interface ChannelTool {
   description: string;
   /** JSON Schema for the tool's parameters (optional). */
   parameters?: Record<string, unknown>;
+  /** Whether this tool mutates external state (e.g., creates/deletes events). */
+  mutatesState: boolean;
 }
 
 /**
