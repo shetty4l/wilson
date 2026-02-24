@@ -135,11 +135,39 @@ export class CalendarChannel implements Channel {
       }
 
       // Read events
-      const events = await readAppleCalendar({
+      const result = await readAppleCalendar({
         lookAheadDays: windowDays,
         includeCalendars: this.config.includeCalendars,
         spawn: this.spawnFn,
       });
+
+      // Handle read errors
+      if (!result.ok) {
+        const error = result.error;
+        if (error.type === "timeout") {
+          log("sync: osascript timed out");
+          s.status = "degraded";
+          s.error = "Calendar read timed out";
+        } else if (error.type === "osascript_failed") {
+          log(
+            `sync: osascript failed (exit ${error.exitCode}): ${error.stderr}`,
+          );
+          s.status = "error";
+          s.error = `osascript failed: ${error.stderr}`;
+        } else if (error.type === "parse_error") {
+          log(`sync: parse error: ${error.message}`);
+          s.status = "error";
+          s.error = `Parse error: ${error.message}`;
+        } else {
+          log(`sync: exception: ${error.message}`);
+          s.status = "error";
+          s.error = error.message;
+        }
+        s.lastSyncAt = new Date();
+        return;
+      }
+
+      const events = result.value;
 
       // Update lastSyncAt - we successfully read from Apple Calendar
       s.lastSyncAt = new Date();
@@ -168,7 +196,7 @@ export class CalendarChannel implements Channel {
       s.lastHash = hash;
 
       // Post to cortex
-      const result = await this.cortex.receive({
+      const postResult = await this.cortex.receive({
         channel: "calendar",
         externalId: `cal-sync-${Date.now()}`,
         data: { events: sorted, windowDays },
@@ -176,16 +204,16 @@ export class CalendarChannel implements Channel {
         mode: "buffered",
       });
 
-      if (result.ok) {
+      if (postResult.ok) {
         log(
-          `sync: posted ${sorted.length} events (${windowDays}d window, status: ${result.value.status})`,
+          `sync: posted ${sorted.length} events (${windowDays}d window, status: ${postResult.value.status})`,
         );
         s.lastPostAt = new Date();
         s.eventsPosted = sorted.length;
       } else {
-        log(`sync: cortex error: ${result.error}`);
+        log(`sync: cortex error: ${postResult.error}`);
         s.status = "degraded";
-        s.error = `Cortex error: ${result.error}`;
+        s.error = `Cortex error: ${postResult.error}`;
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);

@@ -1,10 +1,11 @@
 /**
  * Read Apple Calendar events via osascript (JXA).
  *
- * macOS only. Returns empty array on failure (non-macOS, no Calendar access, etc.).
+ * macOS only. Returns Result with error type indicating failure reason.
  */
 
 import { createLogger } from "@shetty4l/core/log";
+import { err, ok, type Result } from "@shetty4l/core/result";
 
 const log = createLogger("wilson:calendar");
 
@@ -19,6 +20,18 @@ export interface CalendarEvent {
   notes: string;
   calendarName: string;
 }
+
+/** Error types for calendar read failures */
+export type CalendarReadError =
+  | { type: "timeout" }
+  | { type: "osascript_failed"; exitCode: number; stderr: string }
+  | { type: "parse_error"; message: string }
+  | { type: "exception"; message: string };
+
+export type ReadAppleCalendarResult = Result<
+  CalendarEvent[],
+  CalendarReadError
+>;
 
 // --- JXA script ---
 
@@ -103,7 +116,7 @@ const defaultSpawn: SpawnFn = async (cmd) => {
     stderr: string;
   }>((resolve) => {
     timeoutId = setTimeout(() => {
-      proc.kill();
+      proc.kill(9); // SIGKILL for hard termination
       log("osascript timed out after 60s");
       resolve({ exitCode: -1, stdout: "", stderr: "osascript timed out" });
     }, SPAWN_TIMEOUT_MS);
@@ -128,7 +141,7 @@ export interface ReadAppleCalendarOptions {
  * Read Apple Calendar events for the next N days.
  *
  * Uses osascript with JXA (JavaScript for Automation) to query Calendar.app.
- * Returns empty array on any failure — never throws.
+ * Returns Result type — Ok with events or Err with typed error.
  *
  * @param options.lookAheadDays - Number of days to look ahead
  * @param options.includeCalendars - Optional list of calendar names to include (case-insensitive)
@@ -136,7 +149,7 @@ export interface ReadAppleCalendarOptions {
  */
 export async function readAppleCalendar(
   options: ReadAppleCalendarOptions,
-): Promise<CalendarEvent[]> {
+): Promise<ReadAppleCalendarResult> {
   const { lookAheadDays, includeCalendars, spawn = defaultSpawn } = options;
   try {
     const script = buildJxaScript(lookAheadDays, includeCalendars);
@@ -149,26 +162,38 @@ export async function readAppleCalendar(
     ]);
 
     if (exitCode !== 0) {
+      const timedOut = stderr.includes("timed out");
       log(`osascript failed (exit ${exitCode}): ${stderr.trim()}`);
-      return [];
+      if (timedOut) {
+        return err({ type: "timeout" });
+      }
+      return err({ type: "osascript_failed", exitCode, stderr: stderr.trim() });
     }
 
     const trimmed = stdout.trim();
     if (!trimmed) {
-      return [];
+      return ok([]);
     }
 
-    const events = JSON.parse(trimmed) as CalendarEvent[];
-    if (!Array.isArray(events)) {
-      log("osascript returned non-array result");
-      return [];
+    try {
+      const events = JSON.parse(trimmed) as CalendarEvent[];
+      if (!Array.isArray(events)) {
+        log("osascript returned non-array result");
+        return err({
+          type: "parse_error",
+          message: "osascript returned non-array result",
+        });
+      }
+      return ok(events);
+    } catch (parseErr) {
+      const message =
+        parseErr instanceof Error ? parseErr.message : String(parseErr);
+      log(`failed to parse calendar JSON: ${message}`);
+      return err({ type: "parse_error", message });
     }
-
-    return events;
   } catch (e) {
-    log(
-      `failed to read Apple Calendar: ${e instanceof Error ? e.message : String(e)}`,
-    );
-    return [];
+    const message = e instanceof Error ? e.message : String(e);
+    log(`failed to read Apple Calendar: ${message}`);
+    return err({ type: "exception", message });
   }
 }
