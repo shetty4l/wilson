@@ -28,4 +28,7 @@ export class CalendarChannelState {
 
   /** Date of last extended sync ("YYYY-MM-DD"). */
   @Field("string") lastExtendedSyncDate: string | null = null;
+
+  /** Number of consecutive failures (timeouts or errors). Resets on success. */
+  @Field("number") consecutiveFailures: number = 0;
 }

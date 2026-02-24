@@ -375,6 +375,82 @@ describe("CalendarChannel", () => {
     });
   });
 
+  describe("consecutive failures tracking", () => {
+    test("consecutiveFailures starts at 0", () => {
+      const cortex = makeMockCortex();
+      channel = new CalendarChannel(
+        cortex,
+        DEFAULT_CONFIG,
+        makeSpawn(SAMPLE_EVENTS),
+      );
+
+      const stats = channel.getStats();
+      expect(stats.consecutiveFailures).toBe(0);
+    });
+
+    test("consecutiveFailures increments on timeout", async () => {
+      const cortex = makeMockCortex();
+      const timeoutSpawn = async () => ({
+        exitCode: -1,
+        stdout: "",
+        stderr: "osascript timed out",
+      });
+
+      channel = new CalendarChannel(cortex, DEFAULT_CONFIG, timeoutSpawn);
+      await channel.start();
+
+      expect(channel.getStats().consecutiveFailures).toBe(1);
+
+      // Trigger another sync
+      await channel.sync();
+      expect(channel.getStats().consecutiveFailures).toBe(2);
+    });
+
+    test("consecutiveFailures resets on success", async () => {
+      const cortex = makeMockCortex();
+      let callCount = 0;
+
+      // First two calls timeout, third succeeds
+      const mixedSpawn = async () => {
+        callCount++;
+        if (callCount <= 2) {
+          return { exitCode: -1, stdout: "", stderr: "osascript timed out" };
+        }
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(SAMPLE_EVENTS),
+          stderr: "",
+        };
+      };
+
+      channel = new CalendarChannel(cortex, DEFAULT_CONFIG, mixedSpawn);
+      await channel.start(); // timeout 1
+      expect(channel.getStats().consecutiveFailures).toBe(1);
+
+      await channel.sync(); // timeout 2
+      expect(channel.getStats().consecutiveFailures).toBe(2);
+
+      await channel.sync(); // success
+      expect(channel.getStats().consecutiveFailures).toBe(0);
+      expect(channel.getStats().status).toBe("healthy");
+    });
+
+    test("consecutiveFailures increments on osascript failure", async () => {
+      const cortex = makeMockCortex();
+      const failSpawn = async () => ({
+        exitCode: 1,
+        stdout: "",
+        stderr: "osascript: not available",
+      });
+
+      channel = new CalendarChannel(cortex, DEFAULT_CONFIG, failSpawn);
+      await channel.start();
+
+      expect(channel.getStats().consecutiveFailures).toBe(1);
+      expect(channel.getStats().status).toBe("error");
+    });
+  });
+
   describe("includeCalendars filtering", () => {
     test("passes includeCalendars to readAppleCalendar", async () => {
       const cortex = makeMockCortex();
