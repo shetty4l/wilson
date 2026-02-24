@@ -13,8 +13,14 @@ import type { StateLoader } from "@shetty4l/core/state";
 import { createHash } from "crypto";
 import { CalendarChannelState } from "../../state/calendar";
 import type { CortexClient } from "../cortex-client";
-import type { Channel, ChannelStats } from "../index";
-import { readAppleCalendar, type SpawnFn } from "./apple-calendar";
+import type { Channel, ChannelStats, ChannelTool, ToolResult } from "../index";
+import {
+  createEvent,
+  deleteEvent,
+  getEventByUid,
+  readAppleCalendar,
+  type SpawnFn,
+} from "./apple-calendar";
 
 const log = createLogger("wilson:calendar");
 
@@ -90,6 +96,92 @@ export class CalendarChannel implements Channel {
   canDeliver = false;
   mode = "buffered" as const;
   priority = 2;
+
+  // --- Tools ---
+
+  tools: ChannelTool[] = [
+    {
+      name: "get_events",
+      description: "Get calendar events for a date range",
+      parameters: {
+        type: "object",
+        properties: {
+          lookAheadDays: {
+            type: "number",
+            description: "Number of days to look ahead from now",
+          },
+        },
+        required: ["lookAheadDays"],
+      },
+      mutatesState: false,
+    },
+    {
+      name: "get_event",
+      description: "Get a single calendar event by UID",
+      parameters: {
+        type: "object",
+        properties: {
+          uid: {
+            type: "string",
+            description: "The unique identifier of the event",
+          },
+        },
+        required: ["uid"],
+      },
+      mutatesState: false,
+    },
+    {
+      name: "create_event",
+      description: "Create a new calendar event",
+      parameters: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "The title/summary of the event",
+          },
+          startDate: {
+            type: "string",
+            description: "Start date/time in ISO 8601 format",
+          },
+          endDate: {
+            type: "string",
+            description: "End date/time in ISO 8601 format",
+          },
+          calendarName: {
+            type: "string",
+            description:
+              "Name of the calendar to create the event in (optional)",
+          },
+          location: {
+            type: "string",
+            description: "Location of the event (optional)",
+          },
+          notes: {
+            type: "string",
+            description: "Notes/description for the event (optional)",
+          },
+        },
+        required: ["title", "startDate", "endDate"],
+      },
+      mutatesState: true,
+    },
+    {
+      name: "delete_event",
+      description: "Delete a calendar event by UID",
+      parameters: {
+        type: "object",
+        properties: {
+          uid: {
+            type: "string",
+            description: "The unique identifier of the event to delete",
+          },
+        },
+        required: ["uid"],
+      },
+      mutatesState: true,
+    },
+  ];
 
   private running = false;
   private timer: Timer | null = null;
@@ -313,6 +405,128 @@ export class CalendarChannel implements Channel {
       log(`sync error: ${errorMsg}`);
       s.status = "error";
       s.error = errorMsg;
+    }
+  }
+
+  // --- Tool execution ---
+
+  async executeTool(
+    toolName: string,
+    params?: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    switch (toolName) {
+      case "get_events": {
+        const lookAheadDays = params?.lookAheadDays as number | undefined;
+        if (typeof lookAheadDays !== "number" || lookAheadDays < 1) {
+          return {
+            success: false,
+            error: "lookAheadDays must be a positive number",
+          };
+        }
+        const result = await readAppleCalendar({
+          lookAheadDays,
+          includeCalendars: this.config.includeCalendars,
+          spawn: this.spawnFn,
+        });
+        if (!result.ok) {
+          return {
+            success: false,
+            error: this.formatCalendarError(result.error),
+          };
+        }
+        return { success: true, data: { events: result.value } };
+      }
+
+      case "get_event": {
+        const uid = params?.uid as string | undefined;
+        if (typeof uid !== "string" || !uid) {
+          return { success: false, error: "uid is required" };
+        }
+        const result = await getEventByUid({ uid, spawn: this.spawnFn });
+        if (!result.ok) {
+          return {
+            success: false,
+            error: this.formatCalendarError(result.error),
+          };
+        }
+        if (result.value === null) {
+          return { success: false, error: `Event not found: ${uid}` };
+        }
+        return { success: true, data: result.value };
+      }
+
+      case "create_event": {
+        const title = params?.title as string | undefined;
+        const startDate = params?.startDate as string | undefined;
+        const endDate = params?.endDate as string | undefined;
+        const calendarName = params?.calendarName as string | undefined;
+        const location = params?.location as string | undefined;
+        const notes = params?.notes as string | undefined;
+
+        if (!title || !startDate || !endDate) {
+          return {
+            success: false,
+            error: "title, startDate, and endDate are required",
+          };
+        }
+        const result = await createEvent({
+          title,
+          startDate,
+          endDate,
+          calendarName,
+          location,
+          notes,
+          spawn: this.spawnFn,
+        });
+        if (!result.ok) {
+          return {
+            success: false,
+            error: this.formatCalendarError(result.error),
+          };
+        }
+        return { success: true, data: result.value };
+      }
+
+      case "delete_event": {
+        const uid = params?.uid as string | undefined;
+        if (typeof uid !== "string" || !uid) {
+          return { success: false, error: "uid is required" };
+        }
+        const result = await deleteEvent({ uid, spawn: this.spawnFn });
+        if (!result.ok) {
+          return {
+            success: false,
+            error: this.formatCalendarError(result.error),
+          };
+        }
+        if (!result.value.deleted) {
+          return { success: false, error: `Event not found: ${uid}` };
+        }
+        return { success: true, data: { deleted: true } };
+      }
+
+      default:
+        return { success: false, error: `Unknown tool: ${toolName}` };
+    }
+  }
+
+  private formatCalendarError(error: {
+    type: string;
+    exitCode?: number;
+    stderr?: string;
+    message?: string;
+  }): string {
+    switch (error.type) {
+      case "timeout":
+        return "Calendar operation timed out";
+      case "osascript_failed":
+        return `Calendar operation failed: ${error.stderr}`;
+      case "parse_error":
+        return `Failed to parse calendar response: ${error.message}`;
+      case "exception":
+        return `Calendar exception: ${error.message}`;
+      default:
+        return "Unknown calendar error";
     }
   }
 

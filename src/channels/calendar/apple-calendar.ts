@@ -197,3 +197,251 @@ export async function readAppleCalendar(
     return err({ type: "exception", message });
   }
 }
+
+// --- Get single event by UID ---
+
+export interface GetEventByUidOptions {
+  uid: string;
+  spawn?: SpawnFn;
+}
+
+export type GetEventResult = Result<CalendarEvent | null, CalendarReadError>;
+
+function buildGetEventByUidScript(uid: string): string {
+  return `
+var Calendar = Application("Calendar");
+var calendars = Calendar.calendars();
+var result = null;
+for (var i = 0; i < calendars.length && result === null; i++) {
+  var cal = calendars[i];
+  var events = cal.events.whose({ uid: ${JSON.stringify(uid)} })();
+  if (events.length > 0) {
+    var evt = events[0];
+    result = {
+      uid: evt.uid(),
+      title: evt.summary(),
+      startDate: evt.startDate().toISOString(),
+      endDate: evt.endDate().toISOString(),
+      location: evt.location() || "",
+      notes: evt.description() || "",
+      calendarName: cal.name()
+    };
+  }
+}
+JSON.stringify(result);
+`.trim();
+}
+
+/**
+ * Get a single calendar event by UID.
+ *
+ * Returns null if not found.
+ */
+export async function getEventByUid(
+  options: GetEventByUidOptions,
+): Promise<GetEventResult> {
+  const { uid, spawn = defaultSpawn } = options;
+  try {
+    const script = buildGetEventByUidScript(uid);
+    const { exitCode, stdout, stderr } = await spawn([
+      "osascript",
+      "-l",
+      "JavaScript",
+      "-e",
+      script,
+    ]);
+
+    if (exitCode !== 0) {
+      const timedOut = stderr.includes("timed out");
+      log(`osascript failed (exit ${exitCode}): ${stderr.trim()}`);
+      if (timedOut) {
+        return err({ type: "timeout" });
+      }
+      return err({ type: "osascript_failed", exitCode, stderr: stderr.trim() });
+    }
+
+    const trimmed = stdout.trim();
+    if (!trimmed || trimmed === "null") {
+      return ok(null);
+    }
+
+    try {
+      const event = JSON.parse(trimmed) as CalendarEvent;
+      return ok(event);
+    } catch (parseErr) {
+      const message =
+        parseErr instanceof Error ? parseErr.message : String(parseErr);
+      log(`failed to parse calendar JSON: ${message}`);
+      return err({ type: "parse_error", message });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log(`failed to get event by UID: ${message}`);
+    return err({ type: "exception", message });
+  }
+}
+
+// --- Create event ---
+
+export interface CreateEventOptions {
+  title: string;
+  startDate: string; // ISO 8601
+  endDate: string; // ISO 8601
+  calendarName?: string; // defaults to first calendar
+  location?: string;
+  notes?: string;
+  spawn?: SpawnFn;
+}
+
+export type CreateEventResult = Result<{ uid: string }, CalendarReadError>;
+
+function buildCreateEventScript(
+  options: Omit<CreateEventOptions, "spawn">,
+): string {
+  const { title, startDate, endDate, calendarName, location, notes } = options;
+  return `
+var Calendar = Application("Calendar");
+var calendars = Calendar.calendars();
+var targetCal = null;
+${
+  calendarName
+    ? `
+for (var i = 0; i < calendars.length; i++) {
+  if (calendars[i].name().toLowerCase() === ${JSON.stringify(calendarName.toLowerCase())}) {
+    targetCal = calendars[i];
+    break;
+  }
+}
+`
+    : "targetCal = calendars[0];"
+}
+if (!targetCal) {
+  throw new Error("Calendar not found: ${calendarName || "default"}");
+}
+var evt = Calendar.Event({
+  summary: ${JSON.stringify(title)},
+  startDate: new Date(${JSON.stringify(startDate)}),
+  endDate: new Date(${JSON.stringify(endDate)}),
+  location: ${JSON.stringify(location || "")},
+  description: ${JSON.stringify(notes || "")}
+});
+targetCal.events.push(evt);
+JSON.stringify({ uid: evt.uid() });
+`.trim();
+}
+
+/**
+ * Create a new calendar event.
+ *
+ * Returns the UID of the created event.
+ */
+export async function createEvent(
+  options: CreateEventOptions,
+): Promise<CreateEventResult> {
+  const { spawn = defaultSpawn, ...rest } = options;
+  try {
+    const script = buildCreateEventScript(rest);
+    const { exitCode, stdout, stderr } = await spawn([
+      "osascript",
+      "-l",
+      "JavaScript",
+      "-e",
+      script,
+    ]);
+
+    if (exitCode !== 0) {
+      const timedOut = stderr.includes("timed out");
+      log(`osascript failed (exit ${exitCode}): ${stderr.trim()}`);
+      if (timedOut) {
+        return err({ type: "timeout" });
+      }
+      return err({ type: "osascript_failed", exitCode, stderr: stderr.trim() });
+    }
+
+    const trimmed = stdout.trim();
+    try {
+      const result = JSON.parse(trimmed) as { uid: string };
+      return ok(result);
+    } catch (parseErr) {
+      const message =
+        parseErr instanceof Error ? parseErr.message : String(parseErr);
+      log(`failed to parse create event result: ${message}`);
+      return err({ type: "parse_error", message });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log(`failed to create event: ${message}`);
+    return err({ type: "exception", message });
+  }
+}
+
+// --- Delete event ---
+
+export interface DeleteEventOptions {
+  uid: string;
+  spawn?: SpawnFn;
+}
+
+export type DeleteEventResult = Result<{ deleted: boolean }, CalendarReadError>;
+
+function buildDeleteEventScript(uid: string): string {
+  return `
+var Calendar = Application("Calendar");
+var calendars = Calendar.calendars();
+var deleted = false;
+for (var i = 0; i < calendars.length && !deleted; i++) {
+  var cal = calendars[i];
+  var events = cal.events.whose({ uid: ${JSON.stringify(uid)} })();
+  if (events.length > 0) {
+    cal.events[events[0].id()].delete();
+    deleted = true;
+  }
+}
+JSON.stringify({ deleted: deleted });
+`.trim();
+}
+
+/**
+ * Delete a calendar event by UID.
+ *
+ * Returns { deleted: true } if found and deleted, { deleted: false } if not found.
+ */
+export async function deleteEvent(
+  options: DeleteEventOptions,
+): Promise<DeleteEventResult> {
+  const { uid, spawn = defaultSpawn } = options;
+  try {
+    const script = buildDeleteEventScript(uid);
+    const { exitCode, stdout, stderr } = await spawn([
+      "osascript",
+      "-l",
+      "JavaScript",
+      "-e",
+      script,
+    ]);
+
+    if (exitCode !== 0) {
+      const timedOut = stderr.includes("timed out");
+      log(`osascript failed (exit ${exitCode}): ${stderr.trim()}`);
+      if (timedOut) {
+        return err({ type: "timeout" });
+      }
+      return err({ type: "osascript_failed", exitCode, stderr: stderr.trim() });
+    }
+
+    const trimmed = stdout.trim();
+    try {
+      const result = JSON.parse(trimmed) as { deleted: boolean };
+      return ok(result);
+    } catch (parseErr) {
+      const message =
+        parseErr instanceof Error ? parseErr.message : String(parseErr);
+      log(`failed to parse delete event result: ${message}`);
+      return err({ type: "parse_error", message });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log(`failed to delete event: ${message}`);
+    return err({ type: "exception", message });
+  }
+}
