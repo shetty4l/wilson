@@ -24,18 +24,21 @@ export interface ReceiveResponse {
 }
 
 export interface OutboxMessage {
-  id: string;
-  channel: string;
+  messageId: string;
   topicKey: string;
   text: string;
   leaseToken: string;
-  metadata?: Record<string, unknown>;
+  payload: Record<string, unknown> | null;
 }
 
 export interface PollOpts {
   topicKey?: string;
   max?: number;
   leaseSeconds?: number;
+}
+
+interface PollResponse {
+  messages: OutboxMessage[];
 }
 
 // --- Client ---
@@ -56,13 +59,14 @@ export class CortexClient {
     channel: string,
     opts?: PollOpts,
   ): Promise<Result<OutboxMessage[]>> {
-    const params = new URLSearchParams({ channel });
-    if (opts?.topicKey) params.set("topicKey", opts.topicKey);
-    if (opts?.max != null) params.set("max", String(opts.max));
-    if (opts?.leaseSeconds != null)
-      params.set("leaseSeconds", String(opts.leaseSeconds));
+    const body: Record<string, unknown> = { channel };
+    if (opts?.topicKey) body.topicKey = opts.topicKey;
+    if (opts?.max != null) body.max = opts.max;
+    if (opts?.leaseSeconds != null) body.leaseSeconds = opts.leaseSeconds;
 
-    return this.get<OutboxMessage[]>(`/outbox?${params.toString()}`);
+    const result = await this.post<PollResponse>("/outbox/poll", body);
+    if (!result.ok) return result;
+    return ok(result.value.messages);
   }
 
   /** Acknowledge (complete) an outbox message delivery. */
@@ -70,7 +74,8 @@ export class CortexClient {
     messageId: string,
     leaseToken: string,
   ): Promise<Result<void>> {
-    const result = await this.post<unknown>(`/outbox/${messageId}/ack`, {
+    const result = await this.post<unknown>("/outbox/ack", {
+      messageId,
       leaseToken,
     });
     if (!result.ok) return result;
@@ -88,28 +93,6 @@ export class CortexClient {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        return err(`HTTP ${res.status}: ${text || res.statusText}`);
-      }
-
-      const data = (await res.json()) as T;
-      return ok(data);
-    } catch (e) {
-      return err(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  private async get<T>(path: string): Promise<Result<T>> {
-    try {
-      const res = await fetch(`${this.baseUrl}${path}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
       });
 
       if (!res.ok) {
