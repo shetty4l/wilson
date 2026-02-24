@@ -101,6 +101,14 @@ describe("service registry", () => {
           lookAheadDays: 14,
           extendedLookAheadDays: 30,
         },
+        telegram: {
+          enabled: false,
+          botToken: "",
+          allowedUserIds: [],
+          pollIntervalMs: 250,
+          deliveryMaxBatch: 20,
+          deliveryLeaseSeconds: 60,
+        },
       },
     };
 
@@ -136,6 +144,14 @@ describe("service registry", () => {
           pollIntervalSeconds: 600,
           lookAheadDays: 14,
           extendedLookAheadDays: 30,
+        },
+        telegram: {
+          enabled: false,
+          botToken: "",
+          allowedUserIds: [],
+          pollIntervalMs: 250,
+          deliveryMaxBatch: 20,
+          deliveryLeaseSeconds: 60,
         },
       },
     };
