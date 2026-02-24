@@ -157,6 +157,7 @@ const tabs = [
     status: "healthy" | "degraded" | "error";
     error: string | null;
     consecutive_failures: number;
+    last_extended_sync_date?: string | null;
   }
 
   interface ServiceStats {
@@ -566,13 +567,6 @@ const tabs = [
               ? "bg-amber-nerv"
               : "bg-red-nerv";
 
-        const consecutiveFailuresHtml = ch.consecutive_failures > 0
-          ? `<div>
-              <div class="font-mono text-lg text-red-nerv">${ch.consecutive_failures}</div>
-              <div class="font-mono text-xs text-red-nerv">Consecutive Failures</div>
-            </div>`
-          : "";
-
         return `
           <div class="p-3 bg-nerv-bg/50 rounded border border-nerv-border">
             <div class="flex items-center justify-between mb-3">
@@ -582,21 +576,25 @@ const tabs = [
               </div>
               <span class="font-mono text-xs text-text-muted">${ch.status}</span>
             </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <div class="font-mono text-sm text-text">${formatTimeAgo(ch.last_sync_at)}</div>
-                <div class="font-mono text-xs text-text-muted">Last Sync</div>
+            <div class="space-y-2">
+              <div class="flex justify-between">
+                <span class="font-mono text-xs text-text-muted">Last Sync</span>
+                <span class="font-mono text-sm text-text">${formatTimeAgo(ch.last_sync_at)}</span>
               </div>
-              <div>
-                <div class="font-mono text-sm text-text">${formatTimeAgo(ch.last_post_at)}</div>
-                <div class="font-mono text-xs text-text-muted">Last Post</div>
+              <div class="flex justify-between">
+                <span class="font-mono text-xs text-text-muted">Last Post</span>
+                <span class="font-mono text-sm text-text">${formatTimeAgo(ch.last_post_at)}</span>
               </div>
-              <div>
-                <div class="font-mono text-lg text-amber-nerv">${ch.events_posted}</div>
-                <div class="font-mono text-xs text-text-muted">Events Posted</div>
+              <div class="flex justify-between">
+                <span class="font-mono text-xs text-text-muted">Events Posted</span>
+                <span class="font-mono text-sm text-amber-nerv">${ch.events_posted}</span>
               </div>
-              ${consecutiveFailuresHtml}
-              ${ch.error ? `<div class="col-span-2"><div class="font-mono text-xs text-red-nerv truncate" title="${ch.error}">${ch.error}</div></div>` : ""}
+              <div class="flex justify-between">
+                <span class="font-mono text-xs text-text-muted">Failures</span>
+                <span class="font-mono text-sm ${ch.consecutive_failures > 0 ? 'text-red-nerv' : 'text-green-nerv'}">${ch.consecutive_failures}</span>
+              </div>
+              ${ch.last_extended_sync_date ? `<div class="flex justify-between"><span class="font-mono text-xs text-text-muted">Extended Sync</span><span class="font-mono text-sm text-text">${formatTimeAgo(ch.last_extended_sync_date)}</span></div>` : ""}
+              ${ch.error ? `<div class="mt-2 pt-2 border-t border-nerv-border"><div class="font-mono text-xs text-red-nerv">${ch.error}</div></div>` : ""}
             </div>
           </div>
         `;
