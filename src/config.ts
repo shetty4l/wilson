@@ -11,6 +11,15 @@ export interface CalendarChannelConfig {
   includeCalendars?: string[];
 }
 
+export interface TelegramChannelConfig {
+  enabled: boolean;
+  botToken: string;
+  allowedUserIds: number[];
+  pollIntervalMs?: number;
+  deliveryMaxBatch?: number;
+  deliveryLeaseSeconds?: number;
+}
+
 export interface CortexConfig {
   url: string;
   apiKey: string;
@@ -33,6 +42,7 @@ export interface WilsonConfig {
   services: ServicesConfig;
   channels: {
     calendar: CalendarChannelConfig;
+    telegram: TelegramChannelConfig;
   };
 }
 
@@ -56,6 +66,14 @@ const DEFAULTS: WilsonConfig = {
       pollIntervalSeconds: 600,
       lookAheadDays: 14,
       extendedLookAheadDays: 30,
+    },
+    telegram: {
+      enabled: false,
+      botToken: "",
+      allowedUserIds: [],
+      pollIntervalMs: 250,
+      deliveryMaxBatch: 20,
+      deliveryLeaseSeconds: 60,
     },
   },
 };
@@ -102,18 +120,41 @@ export function loadConfig(): Result<WilsonConfig> {
     ...calendarRaw,
   };
 
+  const telegramRaw = (channelsRaw.telegram ?? {}) as Record<string, unknown>;
+  const telegram: TelegramChannelConfig = {
+    ...DEFAULTS.channels.telegram,
+    ...telegramRaw,
+  };
+
   const config: WilsonConfig = {
     port: (raw.port as number) ?? DEFAULTS.port,
     host: (raw.host as string) ?? DEFAULTS.host,
     cortex,
     services,
-    channels: { calendar },
+    channels: { calendar, telegram },
   };
 
   if (!config.cortex.apiKey) {
     return err(
       "cortex.apiKey is required in ~/.config/wilson/config.json (or set CORTEX_API_KEY and use ${CORTEX_API_KEY})",
     );
+  }
+
+  // Validate telegram config if enabled
+  if (config.channels.telegram.enabled) {
+    if (!config.channels.telegram.botToken) {
+      return err(
+        "channels.telegram.botToken is required when telegram is enabled (or set TELEGRAM_BOT_TOKEN and use ${TELEGRAM_BOT_TOKEN})",
+      );
+    }
+    if (
+      !config.channels.telegram.allowedUserIds ||
+      config.channels.telegram.allowedUserIds.length === 0
+    ) {
+      return err(
+        "channels.telegram.allowedUserIds must contain at least one user ID when telegram is enabled",
+      );
+    }
   }
 
   return ok(config);
