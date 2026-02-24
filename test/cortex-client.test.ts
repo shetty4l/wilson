@@ -158,40 +158,116 @@ describe("CortexClient.receive", () => {
 });
 
 describe("CortexClient.pollOutbox", () => {
-  test("sends correct payload", async () => {
+  test("sends POST to /outbox/poll with JSON body", async () => {
     resetMock();
     mockStatus = 200;
-    mockBody = [];
+    mockBody = { messages: [] };
 
     const client = new CortexClient(baseUrl, "test-api-key");
-    const result = await client.pollOutbox("calendar", {
+    const result = await client.pollOutbox("telegram", {
       max: 5,
       leaseSeconds: 30,
     });
 
     expect(lastRequest).not.toBeNull();
-    expect(lastRequest!.method).toBe("GET");
-    expect(lastRequest!.url).toContain("/outbox?");
-    expect(lastRequest!.url).toContain("channel=calendar");
-    expect(lastRequest!.url).toContain("max=5");
-    expect(lastRequest!.url).toContain("leaseSeconds=30");
+    expect(lastRequest!.method).toBe("POST");
+    expect(lastRequest!.url).toBe("/outbox/poll");
+    expect(lastRequest!.body).toEqual({
+      channel: "telegram",
+      max: 5,
+      leaseSeconds: 30,
+    });
     expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
+  });
+
+  test("includes topicKey in body when provided", async () => {
+    resetMock();
+    mockStatus = 200;
+    mockBody = { messages: [] };
+
+    const client = new CortexClient(baseUrl, "test-api-key");
+    await client.pollOutbox("telegram", { topicKey: "user:123" });
+
+    expect(lastRequest!.body).toEqual({
+      channel: "telegram",
+      topicKey: "user:123",
+    });
+  });
+
+  test("returns messages from response", async () => {
+    resetMock();
+    mockStatus = 200;
+    mockBody = {
+      messages: [
+        {
+          messageId: "msg-1",
+          topicKey: "user:123",
+          text: "Hello",
+          leaseToken: "lease-abc",
+          payload: null,
+        },
+      ],
+    };
+
+    const client = new CortexClient(baseUrl, "test-api-key");
+    const result = await client.pollOutbox("telegram");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1);
+      expect(result.value[0].messageId).toBe("msg-1");
+      expect(result.value[0].text).toBe("Hello");
+    }
   });
 });
 
 describe("CortexClient.ackOutbox", () => {
-  test("sends correct payload", async () => {
+  test("sends POST to /outbox/ack with messageId and leaseToken", async () => {
     resetMock();
     mockStatus = 200;
-    mockBody = { ok: true };
+    mockBody = { ok: true, status: "delivered" };
 
     const client = new CortexClient(baseUrl, "test-api-key");
     const result = await client.ackOutbox("msg-123", "lease-abc");
 
     expect(lastRequest).not.toBeNull();
     expect(lastRequest!.method).toBe("POST");
-    expect(lastRequest!.url).toBe("/outbox/msg-123/ack");
-    expect(lastRequest!.body).toEqual({ leaseToken: "lease-abc" });
+    expect(lastRequest!.url).toBe("/outbox/ack");
+    expect(lastRequest!.body).toEqual({
+      messageId: "msg-123",
+      leaseToken: "lease-abc",
+    });
     expect(result.ok).toBe(true);
+  });
+
+  test("returns Err on 404 (not found)", async () => {
+    resetMock();
+    mockStatus = 404;
+    mockBody = { error: "not_found" };
+
+    const client = new CortexClient(baseUrl, "test-api-key");
+    const result = await client.ackOutbox("msg-unknown", "lease-abc");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("404");
+    }
+  });
+
+  test("returns Err on 409 (lease conflict)", async () => {
+    resetMock();
+    mockStatus = 409;
+    mockBody = { error: "lease_conflict" };
+
+    const client = new CortexClient(baseUrl, "test-api-key");
+    const result = await client.ackOutbox("msg-123", "wrong-lease");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("409");
+    }
   });
 });
