@@ -29,6 +29,7 @@ function makeChannel(name: string, calls: string[]): Channel {
         eventsPosted: 0,
         status: "healthy",
         error: null,
+        consecutiveFailures: 0,
       };
     },
   };

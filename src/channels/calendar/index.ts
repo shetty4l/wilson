@@ -51,6 +51,7 @@ export class CalendarChannel implements Channel {
     eventsPosted: 0,
     status: "healthy" as string,
     error: null as string | null,
+    consecutiveFailures: 0,
   };
 
   constructor(
@@ -105,6 +106,7 @@ export class CalendarChannel implements Channel {
         eventsPosted: this.state.eventsPosted,
         status: this.state.status as ChannelStats["status"],
         error: this.state.error,
+        consecutiveFailures: this.state.consecutiveFailures ?? 0,
       };
     }
     // Fallback to in-memory state for tests
@@ -114,6 +116,7 @@ export class CalendarChannel implements Channel {
       eventsPosted: this.memoryState.eventsPosted,
       status: this.memoryState.status as ChannelStats["status"],
       error: this.memoryState.error,
+      consecutiveFailures: this.memoryState.consecutiveFailures,
     };
   }
 
@@ -144,8 +147,11 @@ export class CalendarChannel implements Channel {
       // Handle read errors
       if (!result.ok) {
         const error = result.error;
+        s.consecutiveFailures++;
         if (error.type === "timeout") {
-          log("sync: osascript timed out");
+          log(
+            `sync: osascript timed out (consecutive: ${s.consecutiveFailures})`,
+          );
           s.status = "degraded";
           s.error = "Calendar read timed out";
         } else if (error.type === "osascript_failed") {
@@ -173,6 +179,7 @@ export class CalendarChannel implements Channel {
       s.lastSyncAt = new Date();
       s.status = "healthy";
       s.error = null;
+      s.consecutiveFailures = 0;
 
       // Sort for stable hashing
       const sorted = [...events].sort(

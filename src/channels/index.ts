@@ -23,6 +23,8 @@ export interface ChannelStats {
   status: "healthy" | "degraded" | "error";
   /** Last error message if status is error/degraded. */
   error: string | null;
+  /** Number of consecutive failures (timeouts or errors). Resets on success. */
+  consecutiveFailures: number;
 }
 
 // --- Channel interface ---
