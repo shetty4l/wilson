@@ -21,9 +21,28 @@ export interface TelegramMessage {
   message_thread_id?: number;
 }
 
+export interface CallbackQuery {
+  id: string;
+  from: {
+    id: number;
+    first_name?: string;
+    username?: string;
+  };
+  message?: {
+    message_id: number;
+    chat: {
+      id: number;
+    };
+    message_thread_id?: number;
+    text?: string;
+  };
+  data?: string;
+}
+
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: CallbackQuery;
 }
 
 export interface InlineKeyboardButton {
@@ -205,7 +224,7 @@ export async function getUpdates(
 ): Promise<TelegramUpdate[]> {
   const payload: Record<string, unknown> = {
     timeout: timeoutSec,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "callback_query"],
   };
   if (offset !== undefined) {
     payload.offset = offset;
@@ -244,6 +263,50 @@ export async function sendMessage(
   return callTelegramApi<TelegramMessage>(
     botToken,
     "sendMessage",
+    payload,
+    15000,
+  );
+}
+
+export async function answerCallbackQuery(
+  botToken: string,
+  callbackQueryId: string,
+  text?: string,
+): Promise<boolean> {
+  const payload: Record<string, unknown> = {
+    callback_query_id: callbackQueryId,
+  };
+  if (text !== undefined) {
+    payload.text = text;
+  }
+
+  return callTelegramApi<boolean>(
+    botToken,
+    "answerCallbackQuery",
+    payload,
+    15000,
+  );
+}
+
+export async function editMessageReplyMarkup(
+  botToken: string,
+  chatId: number,
+  messageId: number,
+  replyMarkup: InlineKeyboardMarkup | null,
+): Promise<boolean> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+  };
+  if (replyMarkup !== null) {
+    payload.reply_markup = replyMarkup;
+  } else {
+    payload.reply_markup = { inline_keyboard: [] };
+  }
+
+  return callTelegramApi<boolean>(
+    botToken,
+    "editMessageReplyMarkup",
     payload,
     15000,
   );
