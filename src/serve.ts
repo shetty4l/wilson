@@ -8,6 +8,7 @@ import { handleApiRequest } from "./api";
 import { CalendarChannel } from "./channels/calendar/index";
 import { CortexClient } from "./channels/cortex-client";
 import { ChannelRegistry } from "./channels/index";
+import { TelegramChannel } from "./channels/telegram/index";
 import { loadConfig } from "./config";
 import { dbManager } from "./db";
 import { VERSION } from "./version";
@@ -112,6 +113,15 @@ export async function cmdServe(): Promise<void> {
       stateLoader,
     );
     registry.register(calendar);
+  }
+
+  if (config.channels.telegram.enabled) {
+    const telegram = new TelegramChannel(
+      cortex,
+      config.channels.telegram,
+      stateLoader,
+    );
+    registry.register(telegram);
   }
 
   // --- HTTP server ---
