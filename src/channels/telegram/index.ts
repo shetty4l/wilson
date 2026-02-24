@@ -114,8 +114,12 @@ export class TelegramChannel implements Channel {
     while (this.running) {
       try {
         await this.pollTelegramUpdates();
-        // Reset backoff on success
+        // Reset backoff and error state on success
         this.ingestionBackoffMs = 0;
+        const s = this.state ?? this.memoryState;
+        s.status = "healthy";
+        s.error = null;
+        s.consecutiveFailures = 0;
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         log(`ingestion error: ${errorMsg}`);
@@ -222,10 +226,12 @@ export class TelegramChannel implements Channel {
     while (this.running) {
       try {
         const delivered = await this.deliverOutboxMessages();
-        if (delivered > 0) {
-          // Reset backoff on successful delivery
-          this.deliveryBackoffMs = 0;
-        } else {
+        // Reset backoff and error state on success (even if no messages)
+        this.deliveryBackoffMs = 0;
+        const s = this.state ?? this.memoryState;
+        s.status = "healthy";
+        s.error = null;
+        if (delivered === 0) {
           // No messages, wait before next poll
           await this.sleep(pollInterval);
         }
