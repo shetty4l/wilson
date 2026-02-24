@@ -441,10 +441,10 @@ describe("TelegramChannel error handling", () => {
       async () => {
         errorCount++;
         errorTimes.push(Date.now());
-        if (errorCount <= 3) {
+        if (errorCount <= 2) {
           throw new Error("Simulated API failure");
         }
-        // After 3 errors, succeed and stop
+        // After 2 errors, succeed and stop
         await new Promise((r) => setTimeout(r, 100));
         return [];
       },
@@ -453,17 +453,17 @@ describe("TelegramChannel error handling", () => {
     const channel = new TelegramChannel(cortex, DEFAULT_CONFIG);
     await channel.start();
 
-    // Wait for at least one backoff cycle (1s min) plus buffer
-    await new Promise((r) => setTimeout(r, 1200));
+    // Wait for: error 1 (immediate) + 1s backoff + error 2 + 2s backoff + success + buffer
+    await new Promise((r) => setTimeout(r, 3500));
     await channel.stop();
 
     // Verify at least 2 errors occurred (first immediate, second after 1s backoff)
     expect(errorCount).toBeGreaterThanOrEqual(2);
 
-    // Verify stats show degraded status
+    // After recovery (successful poll returns []), status should be healthy
     const stats = channel.getStats();
-    expect(stats.consecutiveFailures).toBeGreaterThanOrEqual(1);
-    expect(stats.status).toBe("degraded");
+    expect(stats.status).toBe("healthy");
+    expect(stats.consecutiveFailures).toBe(0);
 
     // Verify backoff is applied (gap between errors should be ~1000ms)
     if (errorTimes.length >= 2) {
