@@ -237,18 +237,17 @@ export class TelegramChannel implements Channel {
   private async handleCallbackQuery(query: CallbackQuery): Promise<void> {
     const s = this.state ?? this.memoryState;
 
-    // Check for duplicate via exists()
+    // Check for duplicate and record callback for deduplication
+    // load() returns existing record or creates new one with defaults
+    // If callbackQueryId is already set, this is a duplicate
     if (this.stateLoader) {
-      const exists = await this.stateLoader.exists(TelegramCallback, query.id);
-      if (exists) {
+      const callback = this.stateLoader.load(TelegramCallback, query.id);
+      if (callback.callbackQueryId !== "") {
+        // Record already exists with data - this is a duplicate
         log(`duplicate callback query ${query.id}, skipping`);
         return;
       }
-    }
-
-    // Record callback for deduplication
-    if (this.stateLoader) {
-      const callback = this.stateLoader.load(TelegramCallback, query.id);
+      // New record - populate and persist
       callback.callbackQueryId = query.id;
       callback.chatId = query.message?.chat.id ?? 0;
       callback.messageId = query.message?.message_id ?? 0;
@@ -293,20 +292,38 @@ export class TelegramChannel implements Channel {
     const threadId = query.message?.message_thread_id;
     const topicKey = threadId ? `${chatId}:${threadId}` : `${chatId}`;
 
+    // Detect approval callbacks (pattern: approval:<id>:<action>)
+    const approvalMatch = query.data?.match(/^approval:([^:]+):(\w+)$/);
+
+    // Build data payload based on callback type
+    const data = approvalMatch
+      ? {
+          type: "approval_response" as const,
+          approvalId: approvalMatch[1],
+          action: approvalMatch[2] as "approve" | "reject",
+          originalMessageId: query.message?.message_id,
+          originalMessageText: query.message?.text,
+          userId,
+          chatId,
+          threadId,
+          topicKey,
+        }
+      : {
+          type: "button_callback" as const,
+          callbackData: query.data,
+          originalMessageId: query.message?.message_id,
+          originalMessageText: query.message?.text,
+          userId,
+          chatId,
+          threadId,
+          topicKey,
+        };
+
     // Post to Cortex
     const result = await this.cortex.receive({
       channel: "telegram",
       externalId: `callback:${query.id}`,
-      data: {
-        type: "button_callback",
-        callbackData: query.data,
-        originalMessageId: query.message?.message_id,
-        originalMessageText: query.message?.text,
-        userId,
-        chatId,
-        threadId,
-        topicKey,
-      },
+      data,
       occurredAt: new Date().toISOString(),
       mode: "realtime",
       metadata: { topicKey },

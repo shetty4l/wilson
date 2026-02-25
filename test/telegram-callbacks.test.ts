@@ -119,7 +119,7 @@ describe("TelegramCallback state class", () => {
     );
   });
 
-  test("exists() returns true for existing callback", async () => {
+  test("can detect existing callback via populated callbackQueryId", async () => {
     db = new Database(":memory:");
     const loader = new StateLoader(db);
 
@@ -129,17 +129,19 @@ describe("TelegramCallback state class", () => {
     callback.data = "test-data";
     await loader.flush();
 
-    // Check exists
+    // Load again and check if callbackQueryId is populated (indicates existing record)
     const loader2 = new StateLoader(db);
-    const exists = await loader2.exists(TelegramCallback, "cb-exists");
+    const callback2 = loader2.load(TelegramCallback, "cb-exists");
+    const exists = callback2.callbackQueryId !== "";
     expect(exists).toBe(true);
   });
 
-  test("exists() returns false for non-existing callback", async () => {
+  test("new callback has empty callbackQueryId (indicates non-existing)", async () => {
     db = new Database(":memory:");
     const loader = new StateLoader(db);
 
-    const exists = await loader.exists(TelegramCallback, "cb-does-not-exist");
+    const callback = loader.load(TelegramCallback, "cb-does-not-exist");
+    const exists = callback.callbackQueryId !== "";
     expect(exists).toBe(false);
   });
 });
@@ -149,7 +151,7 @@ describe("TelegramCallback state class", () => {
 // answering callbacks, removing buttons, and cortex payload structure.
 
 describe("TelegramChannel callback query handling", () => {
-  test("duplicate callback rejected when exists() returns true", async () => {
+  test("duplicate callback rejected when record already exists", async () => {
     const db = new Database(":memory:");
     const loader = new StateLoader(db);
     const cortex = makeMockCortex();
@@ -410,6 +412,212 @@ describe("TelegramChannel callback query handling", () => {
       expect(data.chatId).toBe(123456);
       expect(data.threadId).toBe(789);
       expect(data.topicKey).toBe("123456:789");
+    } finally {
+      getUpdatesSpy.mockRestore();
+      answerSpy.mockRestore();
+      editSpy.mockRestore();
+    }
+  });
+
+  test("approval callback translates to type: approval_response", async () => {
+    const cortex = makeMockCortex();
+
+    const mockUpdate: telegramApi.TelegramUpdate = {
+      update_id: 900,
+      callback_query: {
+        id: "callback-approval-test-unique",
+        from: { id: 123456 },
+        message: {
+          message_id: 500,
+          chat: { id: 123456 },
+          message_thread_id: 789,
+          text: "Approval request message",
+        },
+        data: "approval:abc-123-def:approve",
+      },
+    };
+
+    let getUpdatesCalls = 0;
+    const getUpdatesSpy = spyOn(telegramApi, "getUpdates").mockImplementation(
+      async () => {
+        getUpdatesCalls++;
+        if (getUpdatesCalls === 1) {
+          return [mockUpdate];
+        }
+        await new Promise((r) => setTimeout(r, 100));
+        return [];
+      },
+    );
+
+    const answerSpy = spyOn(
+      telegramApi,
+      "answerCallbackQuery",
+    ).mockImplementation(async () => true);
+
+    const editSpy = spyOn(
+      telegramApi,
+      "editMessageReplyMarkup",
+    ).mockImplementation(async () => true);
+
+    try {
+      const channel = new TelegramChannel(cortex, DEFAULT_CONFIG);
+      await channel.start();
+      await new Promise((r) => setTimeout(r, 150));
+      await channel.stop();
+
+      // Verify receive was called with approval_response type
+      expect(cortex.receiveCalls.length).toBe(1);
+      const payload = cortex.receiveCalls[0];
+
+      expect(payload.channel).toBe("telegram");
+      expect(payload.externalId).toBe("callback:callback-approval-test-unique");
+
+      const data = payload.data as {
+        type: string;
+        approvalId: string;
+        action: string;
+        originalMessageId: number;
+        originalMessageText: string;
+        userId: number;
+        chatId: number;
+        threadId: number;
+        topicKey: string;
+      };
+
+      expect(data.type).toBe("approval_response");
+      expect(data.approvalId).toBe("abc-123-def");
+      expect(data.action).toBe("approve");
+      expect(data.originalMessageId).toBe(500);
+      expect(data.originalMessageText).toBe("Approval request message");
+      expect(data.userId).toBe(123456);
+      expect(data.chatId).toBe(123456);
+      expect(data.threadId).toBe(789);
+      expect(data.topicKey).toBe("123456:789");
+    } finally {
+      getUpdatesSpy.mockRestore();
+      answerSpy.mockRestore();
+      editSpy.mockRestore();
+    }
+  });
+
+  test("reject approval callback translates correctly", async () => {
+    const cortex = makeMockCortex();
+
+    const mockUpdate: telegramApi.TelegramUpdate = {
+      update_id: 910,
+      callback_query: {
+        id: "callback-reject-test-unique",
+        from: { id: 123456 },
+        message: {
+          message_id: 510,
+          chat: { id: 123456 },
+        },
+        data: "approval:xyz-789:reject",
+      },
+    };
+
+    let getUpdatesCalls = 0;
+    const getUpdatesSpy = spyOn(telegramApi, "getUpdates").mockImplementation(
+      async () => {
+        getUpdatesCalls++;
+        if (getUpdatesCalls === 1) {
+          return [mockUpdate];
+        }
+        await new Promise((r) => setTimeout(r, 100));
+        return [];
+      },
+    );
+
+    const answerSpy = spyOn(
+      telegramApi,
+      "answerCallbackQuery",
+    ).mockImplementation(async () => true);
+
+    const editSpy = spyOn(
+      telegramApi,
+      "editMessageReplyMarkup",
+    ).mockImplementation(async () => true);
+
+    try {
+      const channel = new TelegramChannel(cortex, DEFAULT_CONFIG);
+      await channel.start();
+      await new Promise((r) => setTimeout(r, 150));
+      await channel.stop();
+
+      expect(cortex.receiveCalls.length).toBe(1);
+      const payload = cortex.receiveCalls[0];
+
+      const data = payload.data as {
+        type: string;
+        approvalId: string;
+        action: string;
+      };
+
+      expect(data.type).toBe("approval_response");
+      expect(data.approvalId).toBe("xyz-789");
+      expect(data.action).toBe("reject");
+    } finally {
+      getUpdatesSpy.mockRestore();
+      answerSpy.mockRestore();
+      editSpy.mockRestore();
+    }
+  });
+
+  test("non-approval callback still uses button_callback type", async () => {
+    const cortex = makeMockCortex();
+
+    // This uses "approve:" prefix but not the full "approval:<id>:<action>" pattern
+    const mockUpdate: telegramApi.TelegramUpdate = {
+      update_id: 920,
+      callback_query: {
+        id: "callback-non-approval-unique",
+        from: { id: 123456 },
+        message: {
+          message_id: 520,
+          chat: { id: 123456 },
+        },
+        data: "some-other-callback-data",
+      },
+    };
+
+    let getUpdatesCalls = 0;
+    const getUpdatesSpy = spyOn(telegramApi, "getUpdates").mockImplementation(
+      async () => {
+        getUpdatesCalls++;
+        if (getUpdatesCalls === 1) {
+          return [mockUpdate];
+        }
+        await new Promise((r) => setTimeout(r, 100));
+        return [];
+      },
+    );
+
+    const answerSpy = spyOn(
+      telegramApi,
+      "answerCallbackQuery",
+    ).mockImplementation(async () => true);
+
+    const editSpy = spyOn(
+      telegramApi,
+      "editMessageReplyMarkup",
+    ).mockImplementation(async () => true);
+
+    try {
+      const channel = new TelegramChannel(cortex, DEFAULT_CONFIG);
+      await channel.start();
+      await new Promise((r) => setTimeout(r, 150));
+      await channel.stop();
+
+      expect(cortex.receiveCalls.length).toBe(1);
+      const payload = cortex.receiveCalls[0];
+
+      const data = payload.data as {
+        type: string;
+        callbackData: string;
+      };
+
+      expect(data.type).toBe("button_callback");
+      expect(data.callbackData).toBe("some-other-callback-data");
     } finally {
       getUpdatesSpy.mockRestore();
       answerSpy.mockRestore();
