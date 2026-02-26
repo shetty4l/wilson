@@ -320,13 +320,24 @@ export class TelegramChannel implements Channel {
         };
 
     // Post to Cortex
+    // For approval_response, include type/approvalId/action in metadata
+    // so cortex can detect it without parsing message text
+    const metadata = approvalMatch
+      ? {
+          topicKey,
+          type: "approval_response" as const,
+          approvalId: approvalMatch[1],
+          action: approvalMatch[2] as "approve" | "reject",
+        }
+      : { topicKey };
+
     const result = await this.cortex.receive({
       channel: "telegram",
       externalId: `callback:${query.id}`,
       data,
       occurredAt: new Date().toISOString(),
       mode: "realtime",
-      metadata: { topicKey },
+      metadata,
     });
 
     if (result.ok) {
