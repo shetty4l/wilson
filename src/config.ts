@@ -18,6 +18,7 @@ export interface TelegramChannelConfig {
   pollIntervalMs?: number;
   deliveryMaxBatch?: number;
   deliveryLeaseSeconds?: number;
+  supergroupId?: number;
 }
 
 export interface CortexConfig {
