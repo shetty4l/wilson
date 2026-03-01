@@ -311,3 +311,38 @@ export async function editMessageReplyMarkup(
     15000,
   );
 }
+
+export interface ForumTopic {
+  message_thread_id: number;
+}
+
+export async function createForumTopic(
+  botToken: string,
+  chatId: number,
+  name: string,
+): Promise<ForumTopic> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    name,
+  };
+
+  return callTelegramApi<ForumTopic>(
+    botToken,
+    "createForumTopic",
+    payload,
+    15000,
+  );
+}
+
+export async function deleteForumTopic(
+  botToken: string,
+  chatId: number,
+  messageThreadId: number,
+): Promise<boolean> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_thread_id: messageThreadId,
+  };
+
+  return callTelegramApi<boolean>(botToken, "deleteForumTopic", payload, 15000);
+}
