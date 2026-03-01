@@ -13,16 +13,20 @@ import type { StateLoader } from "@shetty4l/core/state";
 import type { TelegramChannelConfig } from "../../config";
 import { TelegramChannelState } from "../../state/telegram";
 import { TelegramCallback } from "../../state/telegram-callback";
+import { TopicChannelMapping } from "../../state/topic-channel";
 import type { CortexClient, OutboxMessage } from "../cortex-client";
 import type { Channel, ChannelStats } from "../index";
 import {
   answerCallbackQuery,
   type CallbackQuery,
+  createForumTopic,
+  deleteForumTopic,
   editMessageReplyMarkup,
   getUpdates,
   type InlineKeyboardMarkup,
   parseTelegramTopicKey,
   sendMessage,
+  type TelegramTopic,
 } from "./api";
 import { chunkMarkdownV2 } from "./chunker";
 import { formatForTelegram } from "./format";
@@ -427,10 +431,15 @@ export class TelegramChannel implements Channel {
   }
 
   private async deliverMessage(msg: OutboxMessage): Promise<void> {
-    // Parse topic key to get chat ID and optional thread ID
-    const topic = parseTelegramTopicKey(msg.topicKey);
-    if (!topic) {
-      log(`invalid topic key: ${msg.topicKey}, acking to skip`);
+    // Resolve topic key to chat coordinates
+    let topic: TelegramTopic;
+    try {
+      topic = await this.resolveTopicKey(msg.topicKey);
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      log(
+        `failed to resolve topic "${msg.topicKey}": ${errorMsg}, acking to skip`,
+      );
       await this.cortex.ackOutbox(msg.messageId, msg.leaseToken);
       return;
     }
@@ -450,6 +459,14 @@ export class TelegramChannel implements Channel {
           ],
         }
       : undefined;
+
+    // Log resolved destination
+    const destination = topic.threadId
+      ? `chat:${topic.chatId}:thread:${topic.threadId}`
+      : `chat:${topic.chatId}`;
+    log(
+      `delivering message ${msg.messageId} to ${destination} (topic: ${msg.topicKey})`,
+    );
 
     // Send each chunk (only last chunk gets buttons)
     for (let i = 0; i < chunks.length; i++) {
@@ -472,6 +489,130 @@ export class TelegramChannel implements Channel {
     } else {
       log(`delivered message ${msg.messageId} to ${msg.topicKey}`);
     }
+  }
+
+  // --- Topic Resolution ---
+
+  /**
+   * Resolve a topic key to Telegram chat coordinates.
+   *
+   * - Numeric keys (e.g., "123456", "-100123:42"): Parse directly (backward compat)
+   * - Semantic keys with existing mapping: Return stored {chatId, threadId}
+   * - Semantic keys without mapping + supergroupId: Create thread, store mapping
+   * - Semantic keys without mapping + no supergroupId: Fallback to allowedUserIds[0] DM
+   *
+   * Race condition handling: On UNIQUE constraint error during storeMapping,
+   * delete orphan thread via deleteForumTopic, then return getMapping result.
+   */
+  private async resolveTopicKey(topicKey: string): Promise<TelegramTopic> {
+    // Try parsing as numeric topic key first (backward compatibility)
+    const parsed = parseTelegramTopicKey(topicKey);
+    if (parsed) {
+      return parsed;
+    }
+
+    // Semantic topic key - check for existing mapping
+    const existing = this.getMapping(topicKey);
+    if (existing) {
+      return {
+        chatId: existing.chatId,
+        threadId: existing.threadId ?? undefined,
+      };
+    }
+
+    // No existing mapping - check if supergroup is configured
+    const supergroupId = this.config.supergroupId;
+    if (supergroupId) {
+      // Create new forum thread
+      const threadName = topicKey.slice(0, 128);
+      const result = await createForumTopic(
+        this.config.botToken,
+        supergroupId,
+        threadName,
+      );
+      const threadId = result.message_thread_id;
+
+      // Try to store the mapping
+      try {
+        this.storeMapping(topicKey, supergroupId, threadId);
+        log(`created thread ${threadId} for topic "${topicKey}"`);
+        return { chatId: supergroupId, threadId };
+      } catch (e) {
+        // Check for UNIQUE constraint violation (race condition)
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        if (errorMsg.includes("UNIQUE constraint failed")) {
+          // Another process won the race - delete our orphan thread
+          log(
+            `race condition on topic "${topicKey}", deleting orphan thread ${threadId}`,
+          );
+          try {
+            await deleteForumTopic(
+              this.config.botToken,
+              supergroupId,
+              threadId,
+            );
+          } catch (deleteErr) {
+            // Log but don't throw - orphan deletion is best effort
+            log(`failed to delete orphan thread ${threadId}: ${deleteErr}`);
+          }
+
+          // Return the winner's mapping
+          const winnerMapping = this.getMapping(topicKey);
+          if (winnerMapping) {
+            return {
+              chatId: winnerMapping.chatId,
+              threadId: winnerMapping.threadId ?? undefined,
+            };
+          }
+          // Should not happen, but fall through to DM fallback
+          log(`race condition resolved but no mapping found for "${topicKey}"`);
+        } else {
+          // Some other error - rethrow
+          throw e;
+        }
+      }
+    }
+
+    // Fallback: Send to first allowed user as DM
+    const fallbackChatId = this.config.allowedUserIds[0];
+    if (!fallbackChatId) {
+      throw new Error(
+        `Cannot resolve topic "${topicKey}": no supergroupId configured and no allowedUserIds`,
+      );
+    }
+    log(`no supergroup configured, falling back to DM for topic "${topicKey}"`);
+    return { chatId: fallbackChatId };
+  }
+
+  /**
+   * Get an existing topic-to-channel mapping from the database.
+   */
+  private getMapping(topicKey: string): TopicChannelMapping | null {
+    if (!this.stateLoader) {
+      return null;
+    }
+    return this.stateLoader.get(TopicChannelMapping, topicKey);
+  }
+
+  /**
+   * Store a new topic-to-channel mapping in the database.
+   * Throws on UNIQUE constraint violation (race condition).
+   */
+  private storeMapping(
+    topicKey: string,
+    chatId: number,
+    threadId: number | null,
+  ): void {
+    if (!this.stateLoader) {
+      log(`no stateLoader, skipping mapping storage for "${topicKey}"`);
+      return;
+    }
+    this.stateLoader.create(TopicChannelMapping, {
+      topicKey,
+      chatId,
+      threadId,
+      createdAt: new Date(),
+    });
   }
 
   // --- Helpers ---
