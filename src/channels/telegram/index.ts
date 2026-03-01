@@ -607,11 +607,11 @@ export class TelegramChannel implements Channel {
       log(`no stateLoader, skipping mapping storage for "${topicKey}"`);
       return;
     }
+    // Note: created_at is auto-managed by @PersistedCollection
     this.stateLoader.create(TopicChannelMapping, {
       topicKey,
       chatId,
       threadId,
-      createdAt: new Date(),
     });
   }
 
