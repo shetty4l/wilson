@@ -5,13 +5,13 @@
     "": {
       "name": "wilson",
       "dependencies": {
-        "@shetty4l/core": "^0.1.35",
+        "@shetty4l/core": "^0.1.40",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.4.2",
+        "@biomejs/biome": "^2.4.4",
         "@types/bun": "latest",
         "husky": "^9.1.7",
-        "oxlint": "^1.48.0",
+        "oxlint": "^1.50.0",
         "typescript": "^5.9.3",
       },
     },
